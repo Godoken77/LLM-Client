@@ -1,7 +1,8 @@
-package org.example.agent.impl.openai.statenormalizer
+package agent.impl.openai.statenormalizer
 
-import org.example.agent.impl.openai.messages.MessageFactory
-import org.example.store.ConversationState
+import agent.impl.openai.messages.MessageFactory
+import store.ConversationState
+import kotlin.collections.get
 
 interface StateNormalizer {
     fun normalize(state: ConversationState): ConversationState

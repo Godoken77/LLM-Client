@@ -1,10 +1,13 @@
-package org.example.agent
+package agent
 
-import org.example.agent.impl.openai.model.Answer
+import agent.impl.openai.context.ContextMode
+import agent.impl.openai.model.Answer
 
 interface Agent {
-    fun ask(userText: String): Answer
-    fun reset()
+    suspend fun ask(userText: String): Answer
+    suspend fun reset()
+    fun getContextMode(): ContextMode = ContextMode.SUMMARY
+    fun setContextMode(newMode: ContextMode) = Unit
 }
 
 interface Answer

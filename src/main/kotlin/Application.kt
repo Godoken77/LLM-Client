@@ -1,7 +1,5 @@
-package org.example
-
-import org.example.dependency.Dependency
-import org.example.network.startService
+import dependency.Dependency
+import network.startService
 import java.io.FileDescriptor
 import java.io.FileOutputStream
 import java.io.PrintStream

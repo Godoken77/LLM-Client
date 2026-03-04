@@ -1,4 +1,4 @@
-package org.example.dependency
+package dependency
 
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
@@ -8,19 +8,26 @@ import io.ktor.client.plugins.defaultRequest
 import io.ktor.client.request.accept
 import io.ktor.http.ContentType
 import io.ktor.serialization.gson.gson
-import org.example.agent.impl.openai.api.OpenAIClient
-import org.example.agent.impl.openai.api.OpenaiApi
-import org.example.agent.impl.openai.compsessor.ConversationCompressorImpl
-import org.example.agent.impl.openai.conversation.ConversationRepositoryImpl
-import org.example.agent.impl.openai.messages.MessageFactoryImpl
-import org.example.agent.impl.openai.prompt.PromptBuilderImpl
-import org.example.agent.impl.openai.responseparser.GsonResponseParserImpl
-import org.example.agent.impl.openai.statenormalizer.StateNormalizerImpl
-import org.example.agent.impl.openai.summarizer.LlmSummarizer
-import org.example.dependency.Dependency.httpClient
-import org.example.store.ConversationStore
-import org.example.store.JsonConversationStore
-import org.example.store.impl.AgentStore
+import agent.impl.openai.api.OpenAIClient
+import agent.impl.openai.api.OpenaiApi
+import agent.impl.openai.compsessor.ConversationCompressorImpl
+import agent.impl.openai.context.ContextMode
+import agent.impl.openai.context.ContextStrategy
+import agent.impl.openai.context.branching.BranchingStrategy
+import agent.impl.openai.context.slider.SlidingWindowStrategy
+import agent.impl.openai.context.sticky.FactsUpdaterImpl
+import agent.impl.openai.context.sticky.StickyFactsStrategy
+import agent.impl.openai.context.summary.SummaryStrategy
+import agent.impl.openai.conversation.ConversationRepositoryImpl
+import agent.impl.openai.messages.MessageFactoryImpl
+import agent.impl.openai.prompt.PromptBuilderImpl
+import agent.impl.openai.responseparser.GsonResponseParserImpl
+import agent.impl.openai.statenormalizer.StateNormalizerImpl
+import agent.impl.openai.summarizer.LlmSummarizer
+import dependency.Dependency.httpClient
+import store.ConversationStore
+import store.JsonConversationStore
+import store.impl.AgentStore
 import java.nio.file.Paths
 
 object Dependency {
@@ -71,5 +78,39 @@ object OpenaiDependency {
         keepLastN = 12,
         chunkSize = 10,
         summarizer = summarizer
+    )
+
+    val factsUpdater = FactsUpdaterImpl(
+        openai = openaiApi,
+        mf = msgFactory
+    )
+
+    val strategies: Map<ContextMode, ContextStrategy> = mapOf(
+        Pair(
+            ContextMode.SLIDING_WINDOW,
+            SlidingWindowStrategy(
+                msgFactory
+            )
+        ),
+        Pair(
+            ContextMode.STICKY_FACTS,
+            StickyFactsStrategy(
+                msgFactory,
+                factsUpdater = factsUpdater
+            )
+        ),
+        Pair(
+            ContextMode.BRANCHING,
+            BranchingStrategy(
+                msgFactory
+            )
+        ),
+        Pair(
+            ContextMode.SUMMARY,
+            SummaryStrategy(
+                compressor = compressor,
+                prompts = prompts
+            )
+        )
     )
 }

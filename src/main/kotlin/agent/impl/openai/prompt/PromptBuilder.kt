@@ -1,7 +1,7 @@
-package org.example.agent.impl.openai.prompt
+package agent.impl.openai.prompt
 
-import org.example.agent.impl.openai.messages.MessageFactory
-import org.example.store.ConversationState
+import agent.impl.openai.messages.MessageFactory
+import store.ConversationState
 
 interface PromptBuilder {
     fun ensureDeveloper(state: ConversationState, systemInstruction: String): ConversationState

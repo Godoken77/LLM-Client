@@ -1,4 +1,4 @@
-package org.example.store
+package store
 
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
@@ -11,7 +11,17 @@ typealias Messages = MutableList<Map<String, Any>>
 
 data class ConversationState(
     val summary: String = "",
-    val messages: Messages = mutableListOf()
+    val messages: Messages = mutableListOf(),
+    val facts: MutableMap<String, String> = mutableMapOf(),
+    val branches: MutableMap<String, BranchState> = mutableMapOf(
+        "main" to BranchState(messages = mutableListOf())
+    ),
+    val currentBranchId: String = "main"
+)
+
+data class BranchState(
+    val messages: MutableList<Map<String, Any>> = mutableListOf(),
+    val checkpoints: MutableMap<String, Int> = mutableMapOf()
 )
 
 interface ConversationStore {
@@ -25,7 +35,7 @@ class JsonConversationStore(
 ) : ConversationStore {
 
     private val gson = Gson()
-    private val type = object : TypeToken<ConversationState>() {}.type
+    private val type = object : com.google.gson.reflect.TypeToken<ConversationState>() {}.type
 
     init { if (!Files.exists(baseDir)) Files.createDirectories(baseDir) }
 

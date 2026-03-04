@@ -1,9 +1,11 @@
-package org.example.network
+package network
 
+import agent.impl.openai.context.ContextMode
 import io.ktor.http.ContentType
 import io.ktor.http.Cookie
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
+import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.gson.gson
 import io.ktor.server.application.ApplicationCall
 import io.ktor.server.application.ApplicationStopped
@@ -19,14 +21,18 @@ import io.ktor.server.response.respondText
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.routing
-import org.example.dependency.Dependency
-import org.example.model.ChatRequest
-import org.example.model.ChatResponse
-import org.example.model.HistoryItem
-import org.example.model.HistoryResponse
-import org.example.model.ResetResponse
-import org.example.ui.htmlPage
+import dependency.Dependency
+import model.ChatRequest
+import model.ChatResponse
+import model.ContextInfoResponse
+import model.HistoryItem
+import model.HistoryResponse
+import model.ResetResponse
+import model.SetContextRequest
+import model.SetContextResponse
+import ui.htmlPage
 import java.util.UUID
+import kotlin.collections.get
 import kotlin.text.isNullOrBlank
 
 fun startService(dependency: Dependency) {
@@ -101,6 +107,36 @@ fun startService(dependency: Dependency) {
                 }
 
                 call.respond(HistoryResponse(items))
+            }
+
+            get("/api/context") {
+                val sid = ensureSessionId(call)
+                val agent = agentStore.getOrCreate(sid)
+
+                val current = agent.getContextMode()
+
+                call.respond(
+                    ContextInfoResponse(
+                        mode = current.name,
+                        available = ContextMode.entries.map { it.name }
+                    )
+                )
+            }
+
+            post("/api/context") {
+                val sid = ensureSessionId(call)
+                val agent = agentStore.getOrCreate(sid)
+
+                val req = call.receive<SetContextRequest>()
+                val newMode = runCatching { ContextMode.valueOf(req.mode) }.getOrNull()
+                    ?: return@post call.respond(
+                        HttpStatusCode.BadRequest,
+                        SetContextResponse(ok = false, mode = req.mode, message = "Unknown mode: ${req.mode}")
+                    )
+
+                agent.setContextMode(newMode)
+
+                call.respond(SetContextResponse(ok = true, mode = newMode.name))
             }
         }
     }.start(wait = true)

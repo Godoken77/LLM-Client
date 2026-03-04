@@ -1,4 +1,4 @@
-package org.example.agent.impl.openai.model
+package agent.impl.openai.model
 
 enum class ModelVersion(val version: String) {
     DEFAULT_MODEL_VERSION("gpt-5.2")

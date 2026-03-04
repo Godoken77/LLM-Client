@@ -1,6 +1,6 @@
-package org.example.store
+package store
 
-import org.example.agent.Agent
+import agent.Agent
 
 typealias SessionId = String
 

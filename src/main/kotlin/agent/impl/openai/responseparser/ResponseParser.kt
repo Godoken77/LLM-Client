@@ -1,9 +1,10 @@
-package org.example.agent.impl.openai.responseparser
+package agent.impl.openai.responseparser
 
 import com.google.gson.Gson
-import org.example.agent.impl.openai.api.dto.Response
-import org.example.agent.impl.openai.model.Answer
-import org.example.agent.impl.openai.model.TokenStats
+import com.google.gson.JsonObject
+import agent.impl.openai.api.dto.Response
+import agent.impl.openai.model.Answer
+import agent.impl.openai.model.TokenStats
 
 interface ResponseParser {
     fun parse(raw: Response): Answer
@@ -23,7 +24,7 @@ class GsonResponseParserImpl(
         }
 
         return try {
-            val root = gson.fromJson(raw.body, com.google.gson.JsonObject::class.java)
+            val root = gson.fromJson(raw.body, JsonObject::class.java)
 
             val errEl = root.get("error")
             if (errEl != null && !errEl.isJsonNull && errEl.isJsonObject) {
@@ -44,7 +45,7 @@ class GsonResponseParserImpl(
             val usageEl = root.get("usage")
             val usageObj = if (usageEl != null && usageEl.isJsonObject) usageEl.asJsonObject else null
 
-            fun com.google.gson.JsonObject.intOrNull(name: String): Int? {
+            fun JsonObject.intOrNull(name: String): Int? {
                 val el = get(name) ?: return null
                 if (el.isJsonNull) return null
                 return runCatching { el.asInt }.getOrNull()
@@ -66,7 +67,7 @@ class GsonResponseParserImpl(
         }
     }
 
-    private fun extractOutputText(root: com.google.gson.JsonObject): String {
+    private fun extractOutputText(root: JsonObject): String {
         val output = root.getAsJsonArray("output") ?: return ""
         val sb = StringBuilder()
         for (item in output) {

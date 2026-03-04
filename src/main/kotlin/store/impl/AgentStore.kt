@@ -1,10 +1,10 @@
-package org.example.store.impl
+package store.impl
 
-import org.example.agent.Agent
-import org.example.agent.impl.openai.OpenAIChatAgent
-import org.example.dependency.OpenaiDependency
-import org.example.store.AgentStore
-import org.example.store.SessionId
+import agent.Agent
+import agent.impl.openai.OpenAIChatAgent
+import dependency.OpenaiDependency
+import store.AgentStore
+import store.SessionId
 import java.util.concurrent.ConcurrentHashMap
 
 class AgentStore(
@@ -20,9 +20,9 @@ class AgentStore(
                 conversationRepository = dependency.conversationRepository,
                 normalizer = dependency.normalizer,
                 prompts = dependency.prompts,
-                compressor = dependency.compressor,
                 openai = dependency.openaiApi,
-                parser = dependency.parser
+                parser = dependency.parser,
+                strategies = dependency.strategies
             )
         }
     }

@@ -1,4 +1,6 @@
-package org.example.agent.impl.openai.messages
+package agent.impl.openai.messages
+
+import kotlin.collections.get
 
 
 interface MessageFactory {

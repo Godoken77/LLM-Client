@@ -1,7 +1,7 @@
-package org.example.agent.impl.openai.conversation
+package agent.impl.openai.conversation
 
-import org.example.store.ConversationState
-import org.example.store.ConversationStore
+import store.ConversationState
+import store.ConversationStore
 
 interface ConversationRepository {
     fun load(sessionId: String): ConversationState

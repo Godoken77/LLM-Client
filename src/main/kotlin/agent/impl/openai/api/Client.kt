@@ -1,4 +1,4 @@
-package org.example.agent.impl.openai.api
+package agent.impl.openai.api
 
 import com.google.gson.Gson
 import com.google.gson.JsonObject
@@ -12,7 +12,7 @@ import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.contentType
 import io.ktor.http.isSuccess
-import org.example.agent.impl.openai.api.dto.Response
+import agent.impl.openai.api.dto.Response
 
 interface OpenaiApi {
     suspend fun responses(request: Map<String, Any>): Response

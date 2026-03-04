@@ -1,9 +1,9 @@
-package org.example.agent.impl.openai.summarizer
+package agent.impl.openai.summarizer
 
-import org.example.agent.impl.openai.api.OpenaiApi
-import org.example.agent.impl.openai.messages.MessageFactory
-import org.example.agent.impl.openai.model.ModelVersion
-import org.example.agent.impl.openai.responseparser.ResponseParser
+import agent.impl.openai.api.OpenaiApi
+import agent.impl.openai.messages.MessageFactory
+import agent.impl.openai.model.ModelVersion
+import agent.impl.openai.responseparser.ResponseParser
 
 interface Summarizer {
     suspend fun summarize(existingSummary: String, chunk: List<Map<String, Any>>): String
@@ -39,7 +39,7 @@ $chunkText
 """.trimIndent()
 
         val req = mapOf(
-            "model" to model,
+            "model" to model.version,
             "input" to listOf(
                 messages.msg("developer", "Ты — модуль суммаризации. Пиши только summary, без вступлений."),
                 messages.msg("user", prompt)

@@ -1,4 +1,4 @@
-package org.example.ui
+package ui
 
 fun htmlPage(): String = """
 <!doctype html>
@@ -29,6 +29,12 @@ fun htmlPage(): String = """
   <div class="wrap">
     <div class="card">
       <h1>Web Agent Chat (с сохранением контекста в JSON)</h1>
+      <div class="hint" style="margin-bottom:10px;">
+        Контекст: 
+        <select id="mode" style="padding:8px;border-radius:10px;border:1px solid #374151;background:#0b1220;color:#e6e6e6;">
+        </select>
+        <span style="opacity:.8;">Текущий:</span> <code id="modeNow">...</code>
+      </div>
       <div id="log"></div>
 
       <div class="row">
@@ -49,6 +55,8 @@ const inp = document.getElementById('inp');
 const btn = document.getElementById('send');
 const resetBtn = document.getElementById('reset');
 const pidBox = document.getElementById('pid');
+const modeSel = document.getElementById('mode');
+const modeNow = document.getElementById('modeNow');
 
 function addLine(cls, text) {
   const div = document.createElement('div');
@@ -70,7 +78,6 @@ function prefixByRole(role) {
   return '';
 }
 
-// NEW: загрузка истории с сервера
 async function loadHistory() {
   try {
     const res = await fetch('/api/history', { method: 'GET' });
@@ -150,13 +157,64 @@ async function resetHistory() {
   }
 }
 
+async function loadContextModes() {
+  try {
+    const res = await fetch('/api/context', { method: 'GET' });
+    if (!res.ok) throw new Error(`HTTP ${'$'}{res.status}`);
+    const data = await res.json();
+
+    const current = data.mode;
+    const available = data.available || [];
+
+    modeSel.innerHTML = '';
+    for (const m of available) {
+      const opt = document.createElement('option');
+      opt.value = m;
+      opt.textContent = m;
+      if (m === current) opt.selected = true;
+      modeSel.appendChild(opt);
+    }
+
+    modeNow.textContent = current || 'n/a';
+  } catch (e) {
+    modeNow.textContent = 'n/a';
+    addLine('sys', 'Не удалось загрузить режимы контекста (/api/context): ' + e);
+  }
+}
+
+async function setContextMode(mode) {
+  try {
+    const res = await fetch('/api/context', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode })
+    });
+    const data = await res.json();
+
+    if (!res.ok || !data.ok) {
+      addLine('sys', 'Не удалось сменить режим: ' + (data.message || `HTTP ${'$'}{res.status}`));
+      return;
+    }
+
+    modeNow.textContent = data.mode;
+    addLine('sys', 'Режим контекста переключен на: ' + data.mode);
+  } catch (e) {
+    addLine('sys', 'Ошибка при смене режима: ' + e);
+  }
+}
+
 btn.addEventListener('click', send);
 resetBtn.addEventListener('click', resetHistory);
 inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') send(); });
+modeSel.addEventListener('change', async () => {
+  const m = modeSel.value;
+  await setContextMode(m);
+});
 
 refreshPid();
 loadHistory(); // NEW: при старте страницы подтянуть прошлые сообщения
 inp.focus();
+loadContextModes();
 </script>
 </body>
 </html>
