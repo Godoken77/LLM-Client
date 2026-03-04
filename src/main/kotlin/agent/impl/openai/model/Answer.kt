@@ -1,7 +1,6 @@
 package org.example.agent.impl.openai.model
 
 import org.example.agent.Answer
-import org.example.model.TokenStats
 
 data class Answer(val reply: String, val stats: TokenStats?): Answer
 
