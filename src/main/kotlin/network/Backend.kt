@@ -22,6 +22,8 @@ import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.routing
 import dependency.Dependency
+import io.ktor.server.http.content.default
+import io.ktor.server.http.content.staticResources
 import model.ChatRequest
 import model.ChatResponse
 import model.ContextInfoResponse
@@ -57,8 +59,8 @@ fun startService(dependency: Dependency) {
         }
 
         routing {
-            get("/") {
-                call.respondText(htmlPage(), ContentType.Text.Html)
+            staticResources("/", "web") {
+                default("index.html")
             }
 
             post("/api/chat") {
