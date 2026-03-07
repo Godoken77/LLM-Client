@@ -1,7 +1,6 @@
 package store
 
 import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.Path
@@ -13,15 +12,6 @@ data class ConversationState(
     val summary: String = "",
     val messages: Messages = mutableListOf(),
     val facts: MutableMap<String, String> = mutableMapOf(),
-    val branches: MutableMap<String, BranchState> = mutableMapOf(
-        "main" to BranchState(messages = mutableListOf())
-    ),
-    val currentBranchId: String = "main"
-)
-
-data class BranchState(
-    val messages: MutableList<Map<String, Any>> = mutableListOf(),
-    val checkpoints: MutableMap<String, Int> = mutableMapOf()
 )
 
 interface ConversationStore {

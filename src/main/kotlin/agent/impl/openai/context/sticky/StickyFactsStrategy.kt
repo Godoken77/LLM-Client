@@ -13,8 +13,10 @@ class StickyFactsStrategy(
     override val mode = ContextMode.STICKY_FACTS
 
     override suspend fun onModeActivated(state: ConversationState): ConversationState {
-        val branch = state.branches[state.currentBranchId] ?: return state
-        val body = branch.messages
+        val body = state.messages.filter { m ->
+            val role = m["role"] as? String
+            role != "developer" && role != "system"
+        }
 
         val lastUser = body.lastOrNull { (it["role"] as? String) == "user" }
         val lastUserText = lastUser?.let { mf.extractText(it) }.orEmpty()
@@ -44,8 +46,11 @@ class StickyFactsStrategy(
         systemInstruction: String,
         keepLastN: Int
     ): List<Map<String, Any>> {
-        val branch = state.branches[state.currentBranchId] ?: error("No branch")
-        val body = branch.messages
+        val body = state.messages.filter { m ->
+            val role = m["role"] as? String
+            role != "developer" && role != "system"
+        }
+
         val tail = if (keepLastN <= 0) body else body.takeLast(keepLastN)
 
         val factsText = if (state.facts.isEmpty()) {

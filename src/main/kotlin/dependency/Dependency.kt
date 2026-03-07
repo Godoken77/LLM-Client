@@ -13,7 +13,6 @@ import agent.impl.openai.api.OpenaiApi
 import agent.impl.openai.compsessor.ConversationCompressorImpl
 import agent.impl.openai.context.ContextMode
 import agent.impl.openai.context.ContextStrategy
-import agent.impl.openai.context.branching.BranchingStrategy
 import agent.impl.openai.context.slider.SlidingWindowStrategy
 import agent.impl.openai.context.sticky.FactsUpdaterImpl
 import agent.impl.openai.context.sticky.StickyFactsStrategy
@@ -97,12 +96,6 @@ object OpenaiDependency {
             StickyFactsStrategy(
                 msgFactory,
                 factsUpdater = factsUpdater
-            )
-        ),
-        Pair(
-            ContextMode.BRANCHING,
-            BranchingStrategy(
-                msgFactory
             )
         ),
         Pair(

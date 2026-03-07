@@ -11,21 +11,24 @@ class SlidingWindowStrategy(
 
     override val mode = ContextMode.SLIDING_WINDOW
 
-    override suspend fun onUserMessage(state: ConversationState): ConversationState {
-        return state
-    }
+    override suspend fun onUserMessage(state: ConversationState): ConversationState = state
 
     override fun buildInputForLLM(
         state: ConversationState,
         systemInstruction: String,
         keepLastN: Int
     ): List<Map<String, Any>> {
-        val branch = state.branches[state.currentBranchId] ?: error("No branch")
-        val body = branch.messages
+        val messages = state.messages
 
-        val head = listOf(mf.msg("developer", systemInstruction))
+        val head = mf.msg("developer", systemInstruction)
+
+        val body = messages.filter { m ->
+            val role = m["role"] as? String
+            role != "developer" && role != "system"
+        }
+
         val tail = if (keepLastN <= 0) body else body.takeLast(keepLastN)
 
-        return head + tail
+        return listOf(head) + tail
     }
 }

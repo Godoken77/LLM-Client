@@ -5,7 +5,6 @@ import store.ConversationState
 enum class ContextMode {
     SLIDING_WINDOW,
     STICKY_FACTS,
-    BRANCHING,
     SUMMARY
 }
 
