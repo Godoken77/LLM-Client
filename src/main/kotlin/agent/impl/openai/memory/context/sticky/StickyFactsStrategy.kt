@@ -3,11 +3,17 @@ package agent.impl.openai.memory.context.sticky
 import agent.impl.openai.memory.context.ContextMode
 import agent.impl.openai.memory.context.ContextStrategy
 import agent.impl.openai.messages.MessageFactory
+import agent.impl.openai.userprofile.UserProfileRepository
+import agent.impl.openai.userprofile.service.PersonalizationService
 import store.ConversationState
+import store.SessionId
 
 class StickyFactsStrategy(
     private val mf: MessageFactory,
-    private val factsUpdater: FactsUpdater
+    private val factsUpdater: FactsUpdater,
+    private val personalizationService: PersonalizationService,
+    private val profileRepository: UserProfileRepository,
+    private val sessionId: SessionId
 ) : ContextStrategy {
 
     override val mode = ContextMode.STICKY_FACTS
@@ -46,6 +52,9 @@ class StickyFactsStrategy(
         systemInstruction: String,
         keepLastN: Int
     ): List<Map<String, Any>> {
+        val profile = profileRepository.load(sessionId)
+        val profileInstruction = personalizationService.buildProfileInstruction(profile)
+
         val body = state.messages.filter { m ->
             val role = m["role"] as? String
             role != "developer" && role != "system"
@@ -61,6 +70,7 @@ class StickyFactsStrategy(
 
         return listOf(
             mf.msg("developer", systemInstruction),
+            mf.msg("developer", profileInstruction),
             mf.msg("developer", "Важные факты (facts):\n$factsText")
         ) + tail
     }

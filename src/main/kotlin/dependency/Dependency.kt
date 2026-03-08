@@ -33,6 +33,10 @@ import agent.impl.openai.prompt.PromptBuilderImpl
 import agent.impl.openai.responseparser.GsonResponseParserImpl
 import agent.impl.openai.statenormalizer.StateNormalizerImpl
 import agent.impl.openai.summarizer.LlmSummarizer
+import agent.impl.openai.userprofile.FileUserProfileRepository
+import agent.impl.openai.userprofile.UserProfileRepository
+import agent.impl.openai.userprofile.service.PersonalizationService
+import agent.impl.openai.userprofile.service.PersonalizationServiceImpl
 import dependency.Dependency.httpClient
 import dependency.Dependency.sessionId
 import store.ConversationStore
@@ -87,6 +91,8 @@ object OpenaiDependency {
     val parser = GsonResponseParserImpl()
 
     val conversationRepository = ConversationRepositoryImpl(Dependency.conversationStore)
+    private val profileRepository = FileUserProfileRepository()
+    private val personalizationService: PersonalizationService = PersonalizationServiceImpl()
 
     private val summarizer = LlmSummarizer(
         openai = openaiApi,
@@ -124,29 +130,40 @@ object OpenaiDependency {
     )
 
     val memoryPromptBuilder = MemoryPromptBuilder(
-        messageFactory = messageFactory
+        messageFactory = messageFactory,
+        profileRepository = profileRepository,
+        personalizationService = personalizationService
     )
 
+    @OptIn(ExperimentalAtomicApi::class)
     val layersEngine = MemoryLayersEngine(
         memoryRepository = memoryRepository,
         memoryRouter = memoryRouter,
         promptBuilder = memoryPromptBuilder,
         systemInstruction = ModelInstruction.DEFAULT_SYSTEM_INSTRUCTION,
-        keepLastN = 12
+        keepLastN = 12,
+        sessionId = sessionId.load(),
     )
 
+    @OptIn(ExperimentalAtomicApi::class)
     val strategies: Map<ContextMode, ContextStrategy> = mapOf(
         Pair(
             ContextMode.SLIDING_WINDOW,
             SlidingWindowStrategy(
-                messageFactory
+                mf = messageFactory,
+                profileRepository = profileRepository,
+                personalizationService = personalizationService,
+                sessionId = sessionId.load(),
             )
         ),
         Pair(
             ContextMode.STICKY_FACTS,
             StickyFactsStrategy(
                 messageFactory,
-                factsUpdater = factsUpdater
+                factsUpdater = factsUpdater,
+                profileRepository = profileRepository,
+                personalizationService = personalizationService,
+                sessionId = sessionId.load(),
             )
         ),
         Pair(

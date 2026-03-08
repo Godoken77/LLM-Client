@@ -6,13 +6,15 @@ import agent.impl.openai.memory.layers.prompt.MemoryPromptBuilder
 import agent.impl.openai.memory.layers.repository.MemoryRepository
 import agent.impl.openai.memory.layers.router.MemoryRouter
 import agent.impl.openai.model.ModelInstruction
+import store.SessionId
 
 class MemoryLayersEngine(
     private val memoryRepository: MemoryRepository,
     private val memoryRouter: MemoryRouter,
     private val promptBuilder: MemoryPromptBuilder,
     private val systemInstruction: ModelInstruction,
-    private val keepLastN: Int = 12
+    private val keepLastN: Int = 12,
+    private val sessionId: SessionId
 ) : MemoryEngine {
 
     override suspend fun onModeActivated(sessionId: String) {
@@ -28,7 +30,8 @@ class MemoryLayersEngine(
         val input = promptBuilder.buildInput(
             memory = memory,
             systemInstruction = systemInstruction.instruction,
-            keepLastN = keepLastN
+            keepLastN = keepLastN,
+            userId = sessionId
         )
 
         return BuiltInput(input = input)
