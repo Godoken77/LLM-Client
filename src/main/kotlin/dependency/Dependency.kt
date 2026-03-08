@@ -16,6 +16,14 @@ import agent.impl.openai.memory.context.sticky.FactsUpdaterImpl
 import agent.impl.openai.memory.context.sticky.StickyFactsStrategy
 import agent.impl.openai.memory.context.summary.SummaryStrategy
 import agent.impl.openai.conversation.ConversationRepositoryImpl
+import agent.impl.openai.invariants.AssistantInvariant
+import agent.impl.openai.invariants.InvariantSet
+import agent.impl.openai.invariants.InvariantSeverity
+import agent.impl.openai.invariants.InvariantType
+import agent.impl.openai.invariants.invariantchecker.RuleBasedInvariantChecker
+import agent.impl.openai.invariants.prompt.InvariantPromptBuilderImpl
+import agent.impl.openai.invariants.refusalbuilder.InvariantRefusalBuilderImpl
+import agent.impl.openai.invariants.repository.FileInvariantRepository
 import agent.impl.openai.memory.context.ContextMode
 import agent.impl.openai.memory.context.ContextStrategy
 import agent.impl.openai.memory.context.engine.ContextModeMemoryEngine
@@ -34,10 +42,8 @@ import agent.impl.openai.responseparser.GsonResponseParserImpl
 import agent.impl.openai.statenormalizer.StateNormalizerImpl
 import agent.impl.openai.summarizer.LlmSummarizer
 import agent.impl.openai.taskstages.service.TaskStateMachineServiceImpl
-import agent.impl.openai.taskstages.stateupdater.TaskStateUpdater
 import agent.impl.openai.taskstages.stateupdater.TaskStateUpdaterImpl
 import agent.impl.openai.userprofile.FileUserProfileRepository
-import agent.impl.openai.userprofile.UserProfileRepository
 import agent.impl.openai.userprofile.service.PersonalizationService
 import agent.impl.openai.userprofile.service.PersonalizationServiceImpl
 import dependency.Dependency.httpClient
@@ -141,10 +147,17 @@ object OpenaiDependency {
         longTermMemoryUpdater = longTermMemoryUpdater,
     )
 
+    val invariantRepository = FileInvariantRepository()
+    val invariantChecker = RuleBasedInvariantChecker()
+    val invariantPromptBuilder = InvariantPromptBuilderImpl()
+    val invariantRefusalBuilder = InvariantRefusalBuilderImpl()
+
     val memoryPromptBuilder = MemoryPromptBuilder(
         messageFactory = messageFactory,
         profileRepository = profileRepository,
-        personalizationService = personalizationService
+        personalizationService = personalizationService,
+        invariantRepository = invariantRepository,
+        invariantPromptBuilder = invariantPromptBuilder
     )
 
     @OptIn(ExperimentalAtomicApi::class)
@@ -183,6 +196,39 @@ object OpenaiDependency {
             SummaryStrategy(
                 compressor = compressor,
                 prompts = prompts
+            )
+        )
+    )
+
+    val invariants = InvariantSet(
+        mutableListOf(
+            AssistantInvariant(
+                id = "arch-1",
+                type = InvariantType.ARCHITECTURE,
+                title = "Сохранять выбранную архитектуру",
+                description = "Не предлагать решения, которые ломают текущую архитектуру приложения",
+                severity = InvariantSeverity.HARD
+            ),
+            AssistantInvariant(
+                id = "tech-1",
+                type = InvariantType.TECH_DECISION,
+                title = "Использовать Ktor вместо OkHttp",
+                description = "Не использовать OkHttp, использовать только Ktor для HTTP-клиента",
+                severity = InvariantSeverity.HARD
+            ),
+            AssistantInvariant(
+                id = "stack-1",
+                type = InvariantType.STACK_CONSTRAINT,
+                title = "Без branching",
+                description = "Не использовать branching в реализации управления контекстом",
+                severity = InvariantSeverity.HARD
+            ),
+            AssistantInvariant(
+                id = "biz-1",
+                type = InvariantType.BUSINESS_RULE,
+                title = "Не менять публичные интерфейсы без причины",
+                description = "Не предлагать изменения публичных интерфейсов, если это не требуется явно",
+                severity = InvariantSeverity.HARD
             )
         )
     )

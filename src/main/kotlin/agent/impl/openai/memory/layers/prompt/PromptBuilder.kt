@@ -1,5 +1,7 @@
 package agent.impl.openai.memory.layers.prompt
 
+import agent.impl.openai.invariants.prompt.InvariantPromptBuilder
+import agent.impl.openai.invariants.repository.InvariantRepository
 import agent.impl.openai.memory.layers.model.MemoryState
 import agent.impl.openai.messages.MessageFactory
 import agent.impl.openai.userprofile.UserProfileRepository
@@ -8,7 +10,9 @@ import agent.impl.openai.userprofile.service.PersonalizationService
 class MemoryPromptBuilder(
     private val messageFactory: MessageFactory,
     private val personalizationService: PersonalizationService,
-    private val profileRepository: UserProfileRepository
+    private val profileRepository: UserProfileRepository,
+    private val invariantRepository: InvariantRepository,
+    private val invariantPromptBuilder: InvariantPromptBuilder
 ) {
     fun buildInput(
         userId: String,
@@ -21,8 +25,12 @@ class MemoryPromptBuilder(
         val profile = profileRepository.load(userId)
         val profileInstruction = personalizationService.buildProfileInstruction(profile)
 
+        val invariants = invariantRepository.load(userId)
+        val invariantInstruction = invariantPromptBuilder.buildInstruction(invariants)
+
         input += messageFactory.msg("developer", systemInstruction)
         input += messageFactory.msg("developer", profileInstruction)
+        input += messageFactory.msg("developer", invariantInstruction)
 
         val machine = memory.working.stateMachine
         input += messageFactory.msg(

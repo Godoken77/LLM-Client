@@ -20,7 +20,10 @@ class AgentStore(
                 openai = dependency.openaiApi,
                 parser = dependency.parser,
                 contextEngine = dependency.contextEngine,
-                layersEngine = dependency.layersEngine
+                layersEngine = dependency.layersEngine,
+                invariantRepository = dependency.invariantRepository,
+                invariantChecker = dependency.invariantChecker,
+                refusalBuilder = dependency.invariantRefusalBuilder
             )
         }
     }
