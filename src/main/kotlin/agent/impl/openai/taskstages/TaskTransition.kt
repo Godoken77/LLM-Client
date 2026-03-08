@@ -1,18 +1,26 @@
 package agent.impl.openai.taskstages
 
 enum class TaskTransition {
-    NO_CHANGE,
     START,
+    APPROVE_PLAN,
+    FINISH_EXECUTION,
+    VALIDATION_OK,
+    VALIDATION_FAIL,
     PAUSE,
     RESUME,
-    NEXT_AFTER_PLANNING,
-    NEXT_AFTER_EXECUTION,
-    NEXT_AFTER_VALIDATION_OK,
-    NEXT_AFTER_VALIDATION_FAIL
+    NO_CHANGE
 }
 
 data class TaskTransitionDecision(
     val transition: TaskTransition,
     val step: String = "",
     val goal: String = ""
+)
+
+class InvalidTaskTransitionException(message: String) : IllegalStateException(message)
+
+data class TaskTransitionResult(
+    val state: TaskStateMachine,
+    val accepted: Boolean,
+    val message: String? = null
 )

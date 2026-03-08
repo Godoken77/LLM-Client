@@ -3,6 +3,7 @@ package agent.impl.openai.taskstages.stateupdater
 import agent.impl.openai.api.OpenaiApi
 import agent.impl.openai.messages.MessageFactory
 import agent.impl.openai.model.ModelVersion
+import agent.impl.openai.taskstages.InvalidTaskTransitionException
 import agent.impl.openai.taskstages.TaskStateMachine
 import agent.impl.openai.taskstages.TaskTransition
 import agent.impl.openai.taskstages.TaskTransitionDecision
@@ -35,7 +36,7 @@ class TaskStateUpdaterImpl(
         }
 
         val prompt = """
-Ты определяешь переход конечного автомата задачи.
+Ты определяешь СОБЫТИЕ перехода конечного автомата задачи.
 
 Текущее состояние:
 - stage: ${current.stage}
@@ -49,23 +50,22 @@ $dialogText
 
 Верни только JSON:
 {
-  "transition": "NO_CHANGE|START|PAUSE|RESUME|NEXT_AFTER_PLANNING|NEXT_AFTER_EXECUTION|NEXT_AFTER_VALIDATION_OK|NEXT_AFTER_VALIDATION_FAIL",
+  "transition": "NO_CHANGE|START|APPROVE_PLAN|FINISH_EXECUTION|VALIDATION_OK|VALIDATION_FAIL|PAUSE|RESUME",
   "step": "...",
   "goal": "..."
 }
 
-Правила:
-- planning -> execution -> validation -> done
-- можно поставить на паузу из planning/execution/validation
-- если пользователь просит продолжить, возвращайся из paused к pausedFromStage
-- не возвращай финальный state
-- если ничего менять не нужно, верни NO_CHANGE
+Ограничения:
+- нельзя перескакивать этапы
+- нельзя делать реализацию до утверждённого плана
+- нельзя завершать задачу без валидации
+- если изменение состояния не требуется, верни NO_CHANGE
 """.trimIndent()
 
         val req = mapOf(
             "model" to model.version,
             "input" to listOf(
-                messageFactory.msg("developer", "Ты определяешь переход конечного автомата задачи. Возвращай только JSON."),
+                messageFactory.msg("developer", "Ты определяешь только событие перехода автомата. Возвращай только JSON."),
                 messageFactory.msg("user", prompt)
             ),
             "reasoning" to mapOf("effort" to "low")
@@ -90,7 +90,16 @@ $dialogText
             return current
         }
 
-        return stateMachineService.applyTransition(current, decision)
+        return try {
+            stateMachineService.applyTransition(
+                current = current,
+                transition = decision.transition,
+                step = decision.step,
+                goal = decision.goal
+            )
+        } catch (_: InvalidTaskTransitionException) {
+            current
+        }
     }
 
     private fun extractOutputText(root: JsonObject): String {

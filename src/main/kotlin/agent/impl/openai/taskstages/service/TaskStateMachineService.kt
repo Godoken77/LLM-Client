@@ -1,150 +1,129 @@
 package agent.impl.openai.taskstages.service
 
 import agent.impl.openai.taskstages.ExpectedAction
+import agent.impl.openai.taskstages.InvalidTaskTransitionException
 import agent.impl.openai.taskstages.TaskStage
 import agent.impl.openai.taskstages.TaskStateMachine
 import agent.impl.openai.taskstages.TaskTransition
-import agent.impl.openai.taskstages.TaskTransitionDecision
 
 interface TaskStateMachineService {
-    fun start(goal: String): TaskStateMachine
-    fun nextAfterPlanning(current: TaskStateMachine, step: String): TaskStateMachine
-    fun nextAfterExecution(current: TaskStateMachine, step: String): TaskStateMachine
-    fun nextAfterValidation(current: TaskStateMachine, isValid: Boolean, nextStep: String = ""): TaskStateMachine
-    fun pause(current: TaskStateMachine): TaskStateMachine
-    fun resume(current: TaskStateMachine): TaskStateMachine
-
     fun applyTransition(
         current: TaskStateMachine,
-        decision: TaskTransitionDecision
+        transition: TaskTransition,
+        step: String = "",
+        goal: String = ""
     ): TaskStateMachine
 }
 
 class TaskStateMachineServiceImpl : TaskStateMachineService {
 
-    override fun start(goal: String): TaskStateMachine {
-        return TaskStateMachine(
-            stage = TaskStage.PLANNING,
-            currentStep = "Определение плана",
-            expectedAction = ExpectedAction.DEFINE_PLAN,
-            pausedFromStage = null,
-            lastUserGoal = goal
+    private val allowedTransitions: Map<TaskStage, Set<TaskTransition>> = mapOf(
+        TaskStage.PLANNING to setOf(
+            TaskTransition.START,
+            TaskTransition.APPROVE_PLAN,
+            TaskTransition.PAUSE,
+            TaskTransition.NO_CHANGE
+        ),
+        TaskStage.EXECUTION to setOf(
+            TaskTransition.FINISH_EXECUTION,
+            TaskTransition.PAUSE,
+            TaskTransition.NO_CHANGE
+        ),
+        TaskStage.VALIDATION to setOf(
+            TaskTransition.VALIDATION_OK,
+            TaskTransition.VALIDATION_FAIL,
+            TaskTransition.PAUSE,
+            TaskTransition.NO_CHANGE
+        ),
+        TaskStage.DONE to setOf(
+            TaskTransition.NO_CHANGE
+        ),
+        TaskStage.PAUSED to setOf(
+            TaskTransition.RESUME,
+            TaskTransition.NO_CHANGE
         )
-    }
+    )
 
-    override fun nextAfterPlanning(current: TaskStateMachine, step: String): TaskStateMachine {
-        return current.copy(
-            stage = TaskStage.EXECUTION,
-            currentStep = step,
-            expectedAction = ExpectedAction.APPLY_CHANGE,
-            pausedFromStage = null
-        )
-    }
-
-    override fun nextAfterExecution(current: TaskStateMachine, step: String): TaskStateMachine {
-        return current.copy(
-            stage = TaskStage.VALIDATION,
-            currentStep = step,
-            expectedAction = ExpectedAction.RUN_CHECK,
-            pausedFromStage = null
-        )
-    }
-
-    override fun nextAfterValidation(
+    override fun applyTransition(
         current: TaskStateMachine,
-        isValid: Boolean,
-        nextStep: String
+        transition: TaskTransition,
+        step: String,
+        goal: String
     ): TaskStateMachine {
-        return if (isValid) {
-            current.copy(
+        validateTransition(current.stage, transition)
+
+        return when (transition) {
+            TaskTransition.NO_CHANGE -> current
+
+            TaskTransition.START -> current.copy(
+                stage = TaskStage.PLANNING,
+                currentStep = "Определение плана",
+                expectedAction = ExpectedAction.DEFINE_PLAN,
+                pausedFromStage = null,
+                lastUserGoal = goal.ifBlank { current.lastUserGoal }
+            )
+
+            TaskTransition.APPROVE_PLAN -> current.copy(
+                stage = TaskStage.EXECUTION,
+                currentStep = step.ifBlank { "Выполнение изменений" },
+                expectedAction = ExpectedAction.APPLY_CHANGE,
+                pausedFromStage = null
+            )
+
+            TaskTransition.FINISH_EXECUTION -> current.copy(
+                stage = TaskStage.VALIDATION,
+                currentStep = step.ifBlank { "Проверка результата" },
+                expectedAction = ExpectedAction.RUN_CHECK,
+                pausedFromStage = null
+            )
+
+            TaskTransition.VALIDATION_OK -> current.copy(
                 stage = TaskStage.DONE,
                 currentStep = "Задача завершена",
                 expectedAction = ExpectedAction.NONE,
                 pausedFromStage = null
             )
-        } else {
-            current.copy(
+
+            TaskTransition.VALIDATION_FAIL -> current.copy(
                 stage = TaskStage.EXECUTION,
-                currentStep = nextStep.ifBlank { current.currentStep },
+                currentStep = step.ifBlank { current.currentStep },
                 expectedAction = ExpectedAction.APPLY_CHANGE,
                 pausedFromStage = null
             )
+
+            TaskTransition.PAUSE -> current.copy(
+                stage = TaskStage.PAUSED,
+                expectedAction = ExpectedAction.WAIT_FOR_USER,
+                pausedFromStage = current.stage
+            )
+
+            TaskTransition.RESUME -> {
+                val resumeStage = current.pausedFromStage
+                    ?: throw InvalidTaskTransitionException("Cannot resume: pausedFromStage is null")
+
+                val expected = when (resumeStage) {
+                    TaskStage.PLANNING -> ExpectedAction.DEFINE_PLAN
+                    TaskStage.EXECUTION -> ExpectedAction.APPLY_CHANGE
+                    TaskStage.VALIDATION -> ExpectedAction.RUN_CHECK
+                    TaskStage.DONE -> ExpectedAction.NONE
+                    TaskStage.PAUSED -> ExpectedAction.WAIT_FOR_USER
+                }
+
+                current.copy(
+                    stage = resumeStage,
+                    expectedAction = expected,
+                    pausedFromStage = null
+                )
+            }
         }
     }
 
-    override fun pause(current: TaskStateMachine): TaskStateMachine {
-        if (current.stage == TaskStage.DONE || current.stage == TaskStage.PAUSED) return current
-
-        return current.copy(
-            stage = TaskStage.PAUSED,
-            expectedAction = ExpectedAction.WAIT_FOR_USER,
-            pausedFromStage = current.stage
-        )
-    }
-
-    override fun resume(current: TaskStateMachine): TaskStateMachine {
-        if (current.stage != TaskStage.PAUSED) return current
-
-        val resumeStage = current.pausedFromStage ?: TaskStage.PLANNING
-        val expected = when (resumeStage) {
-            TaskStage.PLANNING -> ExpectedAction.DEFINE_PLAN
-            TaskStage.EXECUTION -> ExpectedAction.APPLY_CHANGE
-            TaskStage.VALIDATION -> ExpectedAction.RUN_CHECK
-            TaskStage.DONE -> ExpectedAction.NONE
-            TaskStage.PAUSED -> ExpectedAction.WAIT_FOR_USER
-        }
-
-        return current.copy(
-            stage = resumeStage,
-            expectedAction = expected,
-            pausedFromStage = null
-        )
-    }
-
-    override fun applyTransition(
-        current: TaskStateMachine,
-        decision: TaskTransitionDecision
-    ): TaskStateMachine {
-        return when (decision.transition) {
-            TaskTransition.NO_CHANGE -> current
-
-            TaskTransition.START ->
-                start(
-                    goal = decision.goal.ifBlank {
-                        if (current.lastUserGoal.isNotBlank()) current.lastUserGoal else current.currentStep
-                    }
-                )
-
-            TaskTransition.PAUSE ->
-                pause(current)
-
-            TaskTransition.RESUME ->
-                resume(current)
-
-            TaskTransition.NEXT_AFTER_PLANNING ->
-                nextAfterPlanning(
-                    current = current,
-                    step = decision.step.ifBlank { "Выполнение изменений" }
-                )
-
-            TaskTransition.NEXT_AFTER_EXECUTION ->
-                nextAfterExecution(
-                    current = current,
-                    step = decision.step.ifBlank { "Проверка результата" }
-                )
-
-            TaskTransition.NEXT_AFTER_VALIDATION_OK ->
-                nextAfterValidation(
-                    current = current,
-                    isValid = true
-                )
-
-            TaskTransition.NEXT_AFTER_VALIDATION_FAIL ->
-                nextAfterValidation(
-                    current = current,
-                    isValid = false,
-                    nextStep = decision.step.ifBlank { current.currentStep }
-                )
+    private fun validateTransition(stage: TaskStage, transition: TaskTransition) {
+        val allowed = allowedTransitions[stage].orEmpty()
+        if (transition !in allowed) {
+            throw InvalidTaskTransitionException(
+                "Transition $transition is not allowed from stage $stage"
+            )
         }
     }
 }

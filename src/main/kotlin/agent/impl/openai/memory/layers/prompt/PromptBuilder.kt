@@ -42,6 +42,11 @@ class MemoryPromptBuilder(
 - expectedAction: ${machine.expectedAction}
 - pausedFromStage: ${machine.pausedFromStage}
 - lastUserGoal: ${machine.lastUserGoal}
+
+Правило:
+- нельзя перепрыгивать этапы жизненного цикла
+- нельзя делать реализацию до утверждённого плана
+- нельзя завершать задачу без валидации
 """.trimIndent()
         )
 
