@@ -1,5 +1,7 @@
 package agent.impl.openai.memory.layers.model
 
+import agent.impl.openai.taskstages.TaskStateMachine
+
 data class MemoryState(
     val shortTerm: ShortTermMemory = ShortTermMemory(),
     val working: WorkingMemory = WorkingMemory(),
@@ -12,7 +14,7 @@ data class ShortTermMemory(
 
 data class WorkingMemory(
     val summary: String = "",
-    val taskState: MutableMap<String, String> = mutableMapOf()
+    val stateMachine: TaskStateMachine = TaskStateMachine()
 )
 
 data class LongTermMemory(

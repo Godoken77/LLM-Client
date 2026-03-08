@@ -33,6 +33,9 @@ import agent.impl.openai.prompt.PromptBuilderImpl
 import agent.impl.openai.responseparser.GsonResponseParserImpl
 import agent.impl.openai.statenormalizer.StateNormalizerImpl
 import agent.impl.openai.summarizer.LlmSummarizer
+import agent.impl.openai.taskstages.service.TaskStateMachineServiceImpl
+import agent.impl.openai.taskstages.stateupdater.TaskStateUpdater
+import agent.impl.openai.taskstages.stateupdater.TaskStateUpdaterImpl
 import agent.impl.openai.userprofile.FileUserProfileRepository
 import agent.impl.openai.userprofile.UserProfileRepository
 import agent.impl.openai.userprofile.service.PersonalizationService
@@ -111,9 +114,18 @@ object OpenaiDependency {
         mf = messageFactory
     )
 
+    val taskStateMachineService = TaskStateMachineServiceImpl()
+
+    val taskStateUpdater = TaskStateUpdaterImpl(
+        openai = openaiApi,
+        messageFactory = messageFactory,
+        stateMachineService = taskStateMachineService
+    )
+
     val workingMemoryUpdater = WorkingMemoryUpdaterImpl(
         openai = openaiApi,
-        messageFactory = messageFactory
+        messageFactory = messageFactory,
+        taskStateUpdater = taskStateUpdater
     )
 
     val longTermMemoryUpdater = LongTermMemoryUpdaterImpl(

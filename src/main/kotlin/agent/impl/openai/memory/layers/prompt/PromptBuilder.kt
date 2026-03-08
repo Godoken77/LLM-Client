@@ -24,18 +24,24 @@ class MemoryPromptBuilder(
         input += messageFactory.msg("developer", systemInstruction)
         input += messageFactory.msg("developer", profileInstruction)
 
+        val machine = memory.working.stateMachine
+        input += messageFactory.msg(
+            "developer",
+            """
+Состояние задачи:
+- stage: ${machine.stage}
+- currentStep: ${machine.currentStep}
+- expectedAction: ${machine.expectedAction}
+- pausedFromStage: ${machine.pausedFromStage}
+- lastUserGoal: ${machine.lastUserGoal}
+""".trimIndent()
+        )
+
         if (memory.working.summary.isNotBlank()) {
             input += messageFactory.msg(
                 "developer",
                 "Рабочая память (текущая задача):\n${memory.working.summary}"
             )
-        }
-
-        if (memory.working.taskState.isNotEmpty()) {
-            val text = memory.working.taskState.entries.joinToString("\n") {
-                "- ${it.key}: ${it.value}"
-            }
-            input += messageFactory.msg("developer", "Task state:\n$text")
         }
 
         if (memory.longTerm.facts.isNotEmpty()) {

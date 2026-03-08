@@ -4,6 +4,7 @@ import agent.impl.openai.api.OpenaiApi
 import agent.impl.openai.memory.layers.model.WorkingMemory
 import agent.impl.openai.messages.MessageFactory
 import agent.impl.openai.model.ModelVersion
+import agent.impl.openai.taskstages.stateupdater.TaskStateUpdater
 import com.google.gson.Gson
 import com.google.gson.JsonObject
 
@@ -17,6 +18,7 @@ interface WorkingMemoryUpdater {
 class WorkingMemoryUpdaterImpl(
     private val openai: OpenaiApi,
     private val messageFactory: MessageFactory,
+    private val taskStateUpdater: TaskStateUpdater,
     private val gson: Gson = Gson(),
     private val model: ModelVersion = ModelVersion.DEFAULT_MODEL_VERSION
 ) : WorkingMemoryUpdater {
@@ -31,34 +33,21 @@ class WorkingMemoryUpdaterImpl(
             "${role.uppercase()}: $text"
         }
 
-        val currentState = current.taskState.entries.joinToString("\n") {
-            "${it.key}: ${it.value}"
-        }
-
         val prompt = """
 Ты обновляешь рабочую память ассистента для текущей задачи.
 
 Текущий summary:
 ${current.summary}
 
-Текущее taskState:
-$currentState
-
 Последние сообщения:
 $dialogText
 
 Верни JSON:
 {
-  "summary": "...",
-  "taskState": {
-    "goal": "...",
-    "constraints": "...",
-    "current_step": "...",
-    "status": "..."
-  }
+  "summary": "..."
 }
 
-Сохраняй только то, что относится к текущей задаче.
+Сохраняй только информацию по текущей задаче.
 """.trimIndent()
 
         val req = mapOf(
@@ -71,28 +60,25 @@ $dialogText
         )
 
         val raw = openai.responses(req)
-        if (raw.status !in 200..299) return current
-
-        return try {
-            val root = gson.fromJson(raw.body, JsonObject::class.java)
-            val jsonText = extractOutputText(root).trim()
-            val obj = gson.fromJson(jsonText, JsonObject::class.java)
-
-            val summary = obj.get("summary")?.takeIf { !it.isJsonNull }?.asString ?: current.summary
-
-            val taskStateObj = obj.getAsJsonObject("taskState")
-            val taskState = current.taskState.toMutableMap()
-            taskStateObj?.entrySet()?.forEach { (k, v) ->
-                if (!v.isJsonNull) taskState[k] = v.asString
+        val newSummary = if (raw.status in 200..299) {
+            try {
+                val root = gson.fromJson(raw.body, JsonObject::class.java)
+                val jsonText = extractOutputText(root).trim()
+                val obj = gson.fromJson(jsonText, JsonObject::class.java)
+                obj.get("summary")?.takeIf { !it.isJsonNull }?.asString ?: current.summary
+            } catch (_: Exception) {
+                current.summary
             }
-
-            WorkingMemory(
-                summary = summary,
-                taskState = taskState
-            )
-        } catch (_: Exception) {
-            current
+        } else {
+            current.summary
         }
+
+        val newMachine = taskStateUpdater.update(current.stateMachine, recentMessages)
+
+        return current.copy(
+            summary = newSummary,
+            stateMachine = newMachine
+        )
     }
 
     private fun extractOutputText(root: JsonObject): String {
