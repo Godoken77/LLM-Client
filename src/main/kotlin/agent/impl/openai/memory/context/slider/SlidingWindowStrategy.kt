@@ -1,7 +1,7 @@
-package agent.impl.openai.context.slider
+package agent.impl.openai.memory.context.slider
 
-import agent.impl.openai.context.ContextMode
-import agent.impl.openai.context.ContextStrategy
+import agent.impl.openai.memory.context.ContextMode
+import agent.impl.openai.memory.context.ContextStrategy
 import agent.impl.openai.messages.MessageFactory
 import store.ConversationState
 

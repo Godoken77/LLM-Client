@@ -1,6 +1,10 @@
 package network
 
-import agent.impl.openai.context.ContextMode
+import agent.impl.openai.agentImpl.AgentMemoryMode
+import agent.impl.openai.api.dto.AgentMemoryModeResponse
+import agent.impl.openai.api.dto.SetAgentMemoryModeRequest
+import agent.impl.openai.api.dto.SetAgentMemoryModeResponse
+import agent.impl.openai.memory.context.ContextMode
 import io.ktor.http.ContentType
 import io.ktor.http.Cookie
 import io.ktor.http.HttpHeaders
@@ -35,6 +39,7 @@ import model.SetContextResponse
 import ui.htmlPage
 import java.util.UUID
 import kotlin.collections.get
+import kotlin.concurrent.atomics.ExperimentalAtomicApi
 import kotlin.text.isNullOrBlank
 
 fun startService(dependency: Dependency) {
@@ -64,10 +69,10 @@ fun startService(dependency: Dependency) {
             }
 
             post("/api/chat") {
-                val sid = ensureSessionId(call)
+                ensureSessionId(call)
                 val req = call.receive<ChatRequest>()
 
-                val agent = agentStore.getOrCreate(sid)
+                val agent = agentStore.getOrCreate()
                 val result = agent.ask(req.message)
 
                 call.respond(ChatResponse(reply = result.reply, stats = result.stats))
@@ -78,10 +83,10 @@ fun startService(dependency: Dependency) {
             }
 
             post("/api/reset") {
-                val sid = ensureSessionId(call)
-                val agent = agentStore.getOrCreate(sid)
+                ensureSessionId(call)
+                val agent = agentStore.getOrCreate()
                 agent.reset()
-                agentStore.remove(sid)
+                agentStore.remove()
                 call.respond(ResetResponse(ok = true))
             }
 
@@ -112,8 +117,8 @@ fun startService(dependency: Dependency) {
             }
 
             get("/api/context") {
-                val sid = ensureSessionId(call)
-                val agent = agentStore.getOrCreate(sid)
+                ensureSessionId(call)
+                val agent = agentStore.getOrCreate()
 
                 val current = agent.getContextMode()
 
@@ -126,8 +131,8 @@ fun startService(dependency: Dependency) {
             }
 
             post("/api/context") {
-                val sid = ensureSessionId(call)
-                val agent = agentStore.getOrCreate(sid)
+                ensureSessionId(call)
+                val agent = agentStore.getOrCreate()
 
                 val req = call.receive<SetContextRequest>()
                 val newMode = runCatching { ContextMode.valueOf(req.mode) }.getOrNull()
@@ -140,13 +145,49 @@ fun startService(dependency: Dependency) {
 
                 call.respond(SetContextResponse(ok = true, mode = newMode.name))
             }
+
+            get("/api/memory-mode") {
+                ensureSessionId(call)
+                val agent = agentStore.getOrCreate()
+
+                call.respond(
+                    AgentMemoryModeResponse(
+                        mode = agent.getAgentMemoryMode().name,
+                        available = AgentMemoryMode.entries.map { it.name }
+                    )
+                )
+            }
+
+            post("/api/memory-mode") {
+                ensureSessionId(call)
+                val agent = agentStore.getOrCreate()
+
+                val req = call.receive<SetAgentMemoryModeRequest>()
+                val newMode = runCatching { AgentMemoryMode.valueOf(req.mode) }.getOrNull()
+                    ?: return@post call.respond(
+                        HttpStatusCode.BadRequest,
+                        SetAgentMemoryModeResponse(
+                            ok = false,
+                            mode = req.mode,
+                            message = "Unknown mode: ${req.mode}"
+                        )
+                    )
+
+                agent.setAgentMemoryMode(newMode)
+
+                call.respond(SetAgentMemoryModeResponse(ok = true, mode = newMode.name))
+            }
         }
     }.start(wait = true)
 }
 
+@OptIn(ExperimentalAtomicApi::class)
 private fun ensureSessionId(call: ApplicationCall): String {
     val existing = call.request.cookies["SID"]
-    if (!existing.isNullOrBlank()) return existing
+    if (!existing.isNullOrBlank()) {
+        Dependency.sessionId.store(existing)
+        return existing
+    }
 
     val sid = UUID.randomUUID().toString()
     call.response.cookies.append(
@@ -158,5 +199,6 @@ private fun ensureSessionId(call: ApplicationCall): String {
             secure = false, // для локалки
         )
     )
+    Dependency.sessionId.store(sid)
     return sid
 }

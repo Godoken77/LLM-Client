@@ -11,25 +11,44 @@ import io.ktor.serialization.gson.gson
 import agent.impl.openai.api.OpenAIClient
 import agent.impl.openai.api.OpenaiApi
 import agent.impl.openai.compsessor.ConversationCompressorImpl
-import agent.impl.openai.context.ContextMode
-import agent.impl.openai.context.ContextStrategy
-import agent.impl.openai.context.slider.SlidingWindowStrategy
-import agent.impl.openai.context.sticky.FactsUpdaterImpl
-import agent.impl.openai.context.sticky.StickyFactsStrategy
-import agent.impl.openai.context.summary.SummaryStrategy
+import agent.impl.openai.memory.context.slider.SlidingWindowStrategy
+import agent.impl.openai.memory.context.sticky.FactsUpdaterImpl
+import agent.impl.openai.memory.context.sticky.StickyFactsStrategy
+import agent.impl.openai.memory.context.summary.SummaryStrategy
 import agent.impl.openai.conversation.ConversationRepositoryImpl
+import agent.impl.openai.memory.context.ContextMode
+import agent.impl.openai.memory.context.ContextStrategy
+import agent.impl.openai.memory.context.engine.ContextModeMemoryEngine
+import agent.impl.openai.memory.layers.engine.MemoryLayersEngine
+import agent.impl.openai.memory.layers.prompt.MemoryPromptBuilder
+import agent.impl.openai.memory.layers.repository.FileMemoryRepository
+import agent.impl.openai.memory.layers.repository.MemoryRepository
+import agent.impl.openai.memory.layers.router.MemoryRouter
+import agent.impl.openai.memory.layers.router.MemoryRouterImpl
+import agent.impl.openai.memory.layers.updater.longterm.LongTermMemoryUpdaterImpl
+import agent.impl.openai.memory.layers.updater.workterm.WorkingMemoryUpdaterImpl
 import agent.impl.openai.messages.MessageFactoryImpl
+import agent.impl.openai.model.ModelInstruction
 import agent.impl.openai.prompt.PromptBuilderImpl
 import agent.impl.openai.responseparser.GsonResponseParserImpl
 import agent.impl.openai.statenormalizer.StateNormalizerImpl
 import agent.impl.openai.summarizer.LlmSummarizer
 import dependency.Dependency.httpClient
+import dependency.Dependency.sessionId
 import store.ConversationStore
 import store.JsonConversationStore
+import store.SessionId
 import store.impl.AgentStore
+import java.io.File
 import java.nio.file.Paths
+import kotlin.concurrent.atomics.AtomicReference
+import kotlin.concurrent.atomics.ExperimentalAtomicApi
 
 object Dependency {
+
+    @OptIn(ExperimentalAtomicApi::class)
+    val sessionId: AtomicReference<SessionId> = AtomicReference("")
+
     val conversationStore: ConversationStore = JsonConversationStore(Paths.get("data"))
 
     val httpClient: HttpClient by lazy {
@@ -44,8 +63,10 @@ object Dependency {
         }
     }
 
+    @OptIn(ExperimentalAtomicApi::class)
     val agentStore = AgentStore(
-       dependency = OpenaiDependency
+       dependency = OpenaiDependency,
+       sessionId = sessionId.load()
     )
 
     fun close() = httpClient.close()
@@ -60,9 +81,9 @@ object OpenaiDependency {
         )
     }
 
-    val msgFactory = MessageFactoryImpl()
-    val normalizer = StateNormalizerImpl(msgFactory)
-    val prompts = PromptBuilderImpl(msgFactory)
+    val messageFactory = MessageFactoryImpl()
+    val normalizer = StateNormalizerImpl(messageFactory)
+    val prompts = PromptBuilderImpl(messageFactory)
     val parser = GsonResponseParserImpl()
 
     val conversationRepository = ConversationRepositoryImpl(Dependency.conversationStore)
@@ -70,7 +91,7 @@ object OpenaiDependency {
     private val summarizer = LlmSummarizer(
         openai = openaiApi,
         responseParser = parser,
-        messages = msgFactory
+        messages = messageFactory
     )
 
     val compressor = ConversationCompressorImpl(
@@ -81,20 +102,50 @@ object OpenaiDependency {
 
     val factsUpdater = FactsUpdaterImpl(
         openai = openaiApi,
-        mf = msgFactory
+        mf = messageFactory
+    )
+
+    val workingMemoryUpdater = WorkingMemoryUpdaterImpl(
+        openai = openaiApi,
+        messageFactory = messageFactory
+    )
+
+    val longTermMemoryUpdater = LongTermMemoryUpdaterImpl(
+        openai = openaiApi,
+        messageFactory = messageFactory
+    )
+
+    val memoryRepository: MemoryRepository = FileMemoryRepository(File("./data"))
+
+    val memoryRouter: MemoryRouter = MemoryRouterImpl(
+        messageFactory = messageFactory,
+        workingMemoryUpdater = workingMemoryUpdater,
+        longTermMemoryUpdater = longTermMemoryUpdater,
+    )
+
+    val memoryPromptBuilder = MemoryPromptBuilder(
+        messageFactory = messageFactory
+    )
+
+    val layersEngine = MemoryLayersEngine(
+        memoryRepository = memoryRepository,
+        memoryRouter = memoryRouter,
+        promptBuilder = memoryPromptBuilder,
+        systemInstruction = ModelInstruction.DEFAULT_SYSTEM_INSTRUCTION,
+        keepLastN = 12
     )
 
     val strategies: Map<ContextMode, ContextStrategy> = mapOf(
         Pair(
             ContextMode.SLIDING_WINDOW,
             SlidingWindowStrategy(
-                msgFactory
+                messageFactory
             )
         ),
         Pair(
             ContextMode.STICKY_FACTS,
             StickyFactsStrategy(
-                msgFactory,
+                messageFactory,
                 factsUpdater = factsUpdater
             )
         ),
@@ -105,5 +156,18 @@ object OpenaiDependency {
                 prompts = prompts
             )
         )
+    )
+
+    @OptIn(ExperimentalAtomicApi::class)
+    val contextEngine = ContextModeMemoryEngine(
+        sessionId = sessionId.load(),
+        conversationRepository = conversationRepository,
+        normalizer = normalizer,
+        prompts = prompts,
+        messageFactory = messageFactory,
+        strategies = strategies,
+        systemInstruction = ModelInstruction.DEFAULT_SYSTEM_INSTRUCTION,
+        mode = ContextMode.SUMMARY,
+        keepLastN = 12
     )
 }

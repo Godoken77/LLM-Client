@@ -1,8 +1,8 @@
-package agent.impl.openai.context.summary
+package agent.impl.openai.memory.context.summary
 
 import agent.impl.openai.compsessor.ConversationCompressor
-import agent.impl.openai.context.ContextMode
-import agent.impl.openai.context.ContextStrategy
+import agent.impl.openai.memory.context.ContextMode
+import agent.impl.openai.memory.context.ContextStrategy
 import agent.impl.openai.prompt.PromptBuilder
 import store.ConversationState
 

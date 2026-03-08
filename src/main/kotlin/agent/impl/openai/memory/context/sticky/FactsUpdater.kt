@@ -1,4 +1,4 @@
-package agent.impl.openai.context.sticky
+package agent.impl.openai.memory.context.sticky
 
 import com.google.gson.Gson
 import com.google.gson.JsonObject

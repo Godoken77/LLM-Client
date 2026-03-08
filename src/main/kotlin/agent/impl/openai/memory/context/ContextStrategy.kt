@@ -1,4 +1,4 @@
-package agent.impl.openai.context
+package agent.impl.openai.memory.context
 
 import store.ConversationState
 

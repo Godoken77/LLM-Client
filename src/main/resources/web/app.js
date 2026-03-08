@@ -5,6 +5,8 @@ const resetBtn = document.getElementById('reset');
 const pidBox = document.getElementById('pid');
 const modeSel = document.getElementById('mode');
 const modeNow = document.getElementById('modeNow');
+const memoryModeSel = document.getElementById('memoryMode');
+const memoryModeNow = document.getElementById('memoryModeNow');
 
 function addLine(cls, text) {
   const div = document.createElement('div');
@@ -24,6 +26,11 @@ function prefixByRole(role) {
   if (role === 'user') return 'Вы: ';
   if (role === 'assistant') return 'Агент: ';
   return '';
+}
+
+function syncContextModeAvailability(memoryMode) {
+  const enabled = memoryMode === 'CONTEXT_MODE';
+  modeSel.disabled = !enabled;
 }
 
 async function loadHistory() {
@@ -151,6 +158,55 @@ async function setContextMode(mode) {
   }
 }
 
+async function loadAgentMemoryMode() {
+  try {
+    const res = await fetch('/api/memory-mode', { method: 'GET' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+
+    const current = data.mode;
+    const available = data.available || [];
+
+    memoryModeSel.innerHTML = '';
+    for (const m of available) {
+      const opt = document.createElement('option');
+      opt.value = m;
+      opt.textContent = m;
+      if (m === current) opt.selected = true;
+      memoryModeSel.appendChild(opt);
+    }
+
+    memoryModeNow.textContent = current || 'n/a';
+    syncContextModeAvailability(current);
+  } catch (e) {
+    memoryModeNow.textContent = 'n/a';
+    addLine('sys', 'Не удалось загрузить режим памяти (/api/memory-mode): ' + e);
+  }
+}
+
+async function setAgentMemoryMode(mode) {
+  try {
+    const res = await fetch('/api/memory-mode', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode })
+    });
+
+    const data = await res.json();
+
+    if (!res.ok || !data.ok) {
+      addLine('sys', 'Не удалось сменить режим памяти: ' + (data.message || `HTTP ${res.status}`));
+      return;
+    }
+
+    memoryModeNow.textContent = data.mode;
+    syncContextModeAvailability(data.mode);
+    addLine('sys', 'Режим памяти переключен на: ' + data.mode);
+  } catch (e) {
+    addLine('sys', 'Ошибка при смене режима памяти: ' + e);
+  }
+}
+
 btn.addEventListener('click', send);
 resetBtn.addEventListener('click', resetHistory);
 inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') send(); });
@@ -158,8 +214,13 @@ modeSel.addEventListener('change', async () => {
   const m = modeSel.value;
   await setContextMode(m);
 });
+memoryModeSel.addEventListener('change', async () => {
+  const m = memoryModeSel.value;
+  await setAgentMemoryMode(m);
+});
 
 refreshPid();
-loadHistory(); // NEW: при старте страницы подтянуть прошлые сообщения
-inp.focus();
+loadHistory();
+loadAgentMemoryMode();
 loadContextModes();
+inp.focus();

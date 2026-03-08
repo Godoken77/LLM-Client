@@ -1,33 +1,31 @@
 package store.impl
 
 import agent.Agent
-import agent.impl.openai.OpenAIChatAgent
+import agent.impl.openai.agentImpl.OpenAIChatAgent
 import dependency.OpenaiDependency
 import store.AgentStore
 import store.SessionId
 import java.util.concurrent.ConcurrentHashMap
 
 class AgentStore(
-    private val dependency: OpenaiDependency
+    private val dependency: OpenaiDependency,
+    private val sessionId: SessionId
 ): AgentStore {
     private val agents = ConcurrentHashMap<String, Agent>()
 
-    override fun getOrCreate(sessionId: SessionId): Agent {
+    override fun getOrCreate(): Agent {
         return agents.computeIfAbsent(sessionId) {
             OpenAIChatAgent(
                 sessionId = sessionId,
-                messageFactory = dependency.msgFactory,
-                conversationRepository = dependency.conversationRepository,
-                normalizer = dependency.normalizer,
-                prompts = dependency.prompts,
                 openai = dependency.openaiApi,
                 parser = dependency.parser,
-                strategies = dependency.strategies
+                contextEngine = dependency.contextEngine,
+                layersEngine = dependency.layersEngine
             )
         }
     }
 
-    override fun remove(sessionId: SessionId) {
+    override fun remove() {
         agents.remove(sessionId)
     }
 }
