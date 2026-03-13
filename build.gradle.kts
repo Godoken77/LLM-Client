@@ -1,5 +1,3 @@
-import sun.jvmstat.monitor.MonitoredVmUtil.mainClass
-
 plugins {
     kotlin("jvm") version "2.3.0"
     application
@@ -31,7 +29,7 @@ dependencies {
 }
 
 kotlin {
-    jvmToolchain(25)
+    jvmToolchain(17)
 }
 
 application {
