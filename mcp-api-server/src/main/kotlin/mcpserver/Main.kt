@@ -12,9 +12,7 @@ import kotlinx.io.asSource
 import kotlinx.io.buffered
 import mcpserver.scheduler.TaskScheduler
 import mcpserver.store.TaskStore
-import mcpserver.tools.registerItemTools
 import mcpserver.tools.registerSchedulerTools
-import mcpserver.tools.registerUserTools
 import java.io.File
 
 fun main(): Unit = runBlocking {
@@ -32,8 +30,6 @@ fun main(): Unit = runBlocking {
         ),
     )
 
-    server.registerUserTools()
-    server.registerItemTools()
     server.registerSchedulerTools(taskStore)
 
     val transport = StdioServerTransport(
