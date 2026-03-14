@@ -9,7 +9,8 @@ interface McpClient {
 
 data class McpTool(
     val name: String,
-    val description: String
+    val description: String,
+    val inputSchema: Map<String, Any>? = null
 )
 
 data class McpToolResult(
