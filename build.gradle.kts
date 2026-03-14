@@ -10,6 +10,7 @@ repositories {
     mavenCentral()
 }
 
+
 dependencies {
     testImplementation(kotlin("test"))
 
@@ -27,7 +28,9 @@ dependencies {
     implementation("io.ktor:ktor-client-content-negotiation:2.3.12")
     implementation("io.ktor:ktor-client-logging:2.3.12")
 
-    implementation("io.modelcontextprotocol:kotlin-sdk:0.9.0")
+    implementation("io.modelcontextprotocol:kotlin-sdk:0.9.0") {
+        exclude(group = "io.ktor")
+    }
 }
 
 kotlin {
