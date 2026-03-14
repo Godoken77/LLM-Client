@@ -4,6 +4,9 @@ import io.modelcontextprotocol.kotlin.sdk.client.Client
 import io.modelcontextprotocol.kotlin.sdk.client.StdioClientTransport
 import io.modelcontextprotocol.kotlin.sdk.types.Implementation
 import io.modelcontextprotocol.kotlin.sdk.types.TextContent
+import kotlinx.io.asSink
+import kotlinx.io.asSource
+import kotlinx.io.buffered
 
 class StdioMcpClient(
     private val serverCommand: List<String>
@@ -19,8 +22,8 @@ class StdioMcpClient(
         val process = ProcessBuilder(serverCommand).start()
         serverProcess = process
         val transport = StdioClientTransport(
-            input = process.inputStream,
-            output = process.outputStream
+            input = process.inputStream.asSource().buffered(),
+            output = process.outputStream.asSink().buffered()
         )
         client.connect(transport)
     }
