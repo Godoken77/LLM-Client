@@ -27,6 +27,8 @@ object UserStore {
     }
 
     fun delete(id: String): Boolean = users.remove(id) != null
+
+    fun clear() = users.clear()
 }
 
 object ItemStore {
@@ -53,4 +55,6 @@ object ItemStore {
     }
 
     fun delete(id: String): Boolean = items.remove(id) != null
+
+    fun clear() = items.clear()
 }

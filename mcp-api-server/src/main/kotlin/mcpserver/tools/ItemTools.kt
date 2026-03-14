@@ -38,11 +38,10 @@ fun Server.registerItemTools() {
         ),
     ) { request ->
         val id = request.arguments?.get("id")?.jsonPrimitive?.content
-            ?: return@addTool CallToolResult(content = listOf(TextContent("Error: 'id' is required")))
+            ?: return@addTool CallToolResult(content = listOf(TextContent("Error: 'id' is required")), isError = true)
         val item = ItemStore.get(id)
-        val text = if (item == null) "Item not found: $id"
-        else "id=${item.id} name=${item.name} price=${item.price} description=${item.description}"
-        CallToolResult(content = listOf(TextContent(text)))
+            ?: return@addTool CallToolResult(content = listOf(TextContent("Item not found: $id")), isError = true)
+        CallToolResult(content = listOf(TextContent("id=${item.id} name=${item.name} price=${item.price} description=${item.description}")))
     }
 
     addTool(
@@ -67,13 +66,13 @@ fun Server.registerItemTools() {
         ),
     ) { request ->
         val name = request.arguments?.get("name")?.jsonPrimitive?.content
-            ?: return@addTool CallToolResult(content = listOf(TextContent("Error: 'name' is required")))
+            ?: return@addTool CallToolResult(content = listOf(TextContent("Error: 'name' is required")), isError = true)
         val description = request.arguments?.get("description")?.jsonPrimitive?.content
-            ?: return@addTool CallToolResult(content = listOf(TextContent("Error: 'description' is required")))
+            ?: return@addTool CallToolResult(content = listOf(TextContent("Error: 'description' is required")), isError = true)
         val price = request.arguments?.get("price")?.jsonPrimitive?.doubleOrNull
-            ?: return@addTool CallToolResult(content = listOf(TextContent("Error: 'price' must be a number")))
+            ?: return@addTool CallToolResult(content = listOf(TextContent("Error: 'price' must be a number")), isError = true)
         val item = ItemStore.create(Item(name = name, description = description, price = price))
-        CallToolResult(content = listOf(TextContent("Created item id=${item.id} name=${item.name} price=${item.price}")))
+        CallToolResult(content = listOf(TextContent("Created item id=${item.id} name=${item.name} price=${item.price} description=${item.description}")))
     }
 
     addTool(
@@ -102,14 +101,13 @@ fun Server.registerItemTools() {
         ),
     ) { request ->
         val id = request.arguments?.get("id")?.jsonPrimitive?.content
-            ?: return@addTool CallToolResult(content = listOf(TextContent("Error: 'id' is required")))
+            ?: return@addTool CallToolResult(content = listOf(TextContent("Error: 'id' is required")), isError = true)
         val name = request.arguments?.get("name")?.jsonPrimitive?.content
         val description = request.arguments?.get("description")?.jsonPrimitive?.content
         val price = request.arguments?.get("price")?.jsonPrimitive?.doubleOrNull
         val updated = ItemStore.update(id, name, description, price)
-        val text = if (updated == null) "Item not found: $id"
-        else "Updated item id=${updated.id} name=${updated.name} price=${updated.price}"
-        CallToolResult(content = listOf(TextContent(text)))
+            ?: return@addTool CallToolResult(content = listOf(TextContent("Item not found: $id")), isError = true)
+        CallToolResult(content = listOf(TextContent("Updated item id=${updated.id} name=${updated.name} price=${updated.price} description=${updated.description}")))
     }
 
     addTool(
@@ -126,9 +124,9 @@ fun Server.registerItemTools() {
         ),
     ) { request ->
         val id = request.arguments?.get("id")?.jsonPrimitive?.content
-            ?: return@addTool CallToolResult(content = listOf(TextContent("Error: 'id' is required")))
+            ?: return@addTool CallToolResult(content = listOf(TextContent("Error: 'id' is required")), isError = true)
         val deleted = ItemStore.delete(id)
-        val text = if (deleted) "Deleted item $id" else "Item not found: $id"
-        CallToolResult(content = listOf(TextContent(text)))
+        if (!deleted) return@addTool CallToolResult(content = listOf(TextContent("Item not found: $id")), isError = true)
+        CallToolResult(content = listOf(TextContent("Deleted item $id")))
     }
 }

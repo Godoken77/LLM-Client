@@ -4,6 +4,7 @@ import mcpserver.model.Item
 import mcpserver.model.User
 import mcpserver.store.ItemStore
 import mcpserver.store.UserStore
+import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -11,6 +12,12 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class StoreTest {
+
+    @BeforeTest
+    fun setUp() {
+        UserStore.clear()
+        ItemStore.clear()
+    }
 
     @Test
     fun `create and get user`() {
@@ -73,9 +80,8 @@ class StoreTest {
 
     @Test
     fun `list returns all created entries`() {
-        val before = UserStore.list().size
         UserStore.create(User(name = "D", email = "d@d.com"))
         UserStore.create(User(name = "E", email = "e@e.com"))
-        assertTrue(UserStore.list().size >= before + 2)
+        assertEquals(2, UserStore.list().size)
     }
 }

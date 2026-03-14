@@ -37,11 +37,10 @@ fun Server.registerUserTools() {
         ),
     ) { request ->
         val id = request.arguments?.get("id")?.jsonPrimitive?.content
-            ?: return@addTool CallToolResult(content = listOf(TextContent("Error: 'id' is required")))
+            ?: return@addTool CallToolResult(content = listOf(TextContent("Error: 'id' is required")), isError = true)
         val user = UserStore.get(id)
-        val text = if (user == null) "User not found: $id"
-        else "id=${user.id} name=${user.name} email=${user.email}"
-        CallToolResult(content = listOf(TextContent(text)))
+            ?: return@addTool CallToolResult(content = listOf(TextContent("User not found: $id")), isError = true)
+        CallToolResult(content = listOf(TextContent("id=${user.id} name=${user.name} email=${user.email}")))
     }
 
     addTool(
@@ -62,9 +61,9 @@ fun Server.registerUserTools() {
         ),
     ) { request ->
         val name = request.arguments?.get("name")?.jsonPrimitive?.content
-            ?: return@addTool CallToolResult(content = listOf(TextContent("Error: 'name' is required")))
+            ?: return@addTool CallToolResult(content = listOf(TextContent("Error: 'name' is required")), isError = true)
         val email = request.arguments?.get("email")?.jsonPrimitive?.content
-            ?: return@addTool CallToolResult(content = listOf(TextContent("Error: 'email' is required")))
+            ?: return@addTool CallToolResult(content = listOf(TextContent("Error: 'email' is required")), isError = true)
         val user = UserStore.create(User(name = name, email = email))
         CallToolResult(content = listOf(TextContent("Created user id=${user.id} name=${user.name} email=${user.email}")))
     }
@@ -91,13 +90,12 @@ fun Server.registerUserTools() {
         ),
     ) { request ->
         val id = request.arguments?.get("id")?.jsonPrimitive?.content
-            ?: return@addTool CallToolResult(content = listOf(TextContent("Error: 'id' is required")))
+            ?: return@addTool CallToolResult(content = listOf(TextContent("Error: 'id' is required")), isError = true)
         val name = request.arguments?.get("name")?.jsonPrimitive?.content
         val email = request.arguments?.get("email")?.jsonPrimitive?.content
         val updated = UserStore.update(id, name, email)
-        val text = if (updated == null) "User not found: $id"
-        else "Updated user id=${updated.id} name=${updated.name} email=${updated.email}"
-        CallToolResult(content = listOf(TextContent(text)))
+            ?: return@addTool CallToolResult(content = listOf(TextContent("User not found: $id")), isError = true)
+        CallToolResult(content = listOf(TextContent("Updated user id=${updated.id} name=${updated.name} email=${updated.email}")))
     }
 
     addTool(
@@ -114,9 +112,9 @@ fun Server.registerUserTools() {
         ),
     ) { request ->
         val id = request.arguments?.get("id")?.jsonPrimitive?.content
-            ?: return@addTool CallToolResult(content = listOf(TextContent("Error: 'id' is required")))
+            ?: return@addTool CallToolResult(content = listOf(TextContent("Error: 'id' is required")), isError = true)
         val deleted = UserStore.delete(id)
-        val text = if (deleted) "Deleted user $id" else "User not found: $id"
-        CallToolResult(content = listOf(TextContent(text)))
+        if (!deleted) return@addTool CallToolResult(content = listOf(TextContent("User not found: $id")), isError = true)
+        CallToolResult(content = listOf(TextContent("Deleted user $id")))
     }
 }
