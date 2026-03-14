@@ -10,11 +10,18 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.io.asSink
 import kotlinx.io.asSource
 import kotlinx.io.buffered
+import mcpserver.scheduler.TaskScheduler
+import mcpserver.store.TaskStore
 import mcpserver.tools.registerItemTools
+import mcpserver.tools.registerSchedulerTools
 import mcpserver.tools.registerUserTools
+import java.io.File
 
 fun main(): Unit = runBlocking {
     System.err.println("[mcp-api-server] Starting...")
+
+    val taskStore = TaskStore(File("data/scheduler"))
+    val scheduler = TaskScheduler(taskStore)
 
     val server = Server(
         serverInfo = Implementation(name = "mcp-api-server", version = "1.0.0"),
@@ -27,6 +34,7 @@ fun main(): Unit = runBlocking {
 
     server.registerUserTools()
     server.registerItemTools()
+    server.registerSchedulerTools(taskStore)
 
     val transport = StdioServerTransport(
         inputStream = System.`in`.asSource().buffered(),
@@ -37,6 +45,7 @@ fun main(): Unit = runBlocking {
     val session = server.createSession(transport)
     session.onClose { done.complete() }
 
+    scheduler.start(this)
     System.err.println("[mcp-api-server] Connected, waiting for requests...")
     done.join()
 }
