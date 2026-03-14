@@ -26,6 +26,9 @@ dependencies {
     implementation("io.ktor:ktor-client-cio:2.3.12")
     implementation("io.ktor:ktor-client-content-negotiation:2.3.12")
     implementation("io.ktor:ktor-client-logging:2.3.12")
+    implementation("io.ktor:ktor-client-sse:2.3.12")
+
+    implementation("io.modelcontextprotocol:kotlin-sdk:0.9.0")
 }
 
 kotlin {
