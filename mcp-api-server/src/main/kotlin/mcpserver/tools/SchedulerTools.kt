@@ -41,8 +41,8 @@ fun Server.registerSchedulerTools(store: TaskStore) {
         val message = request.arguments?.get("message")?.jsonPrimitive?.content
             ?: return@addTool CallToolResult(content = listOf(TextContent("Error: 'message' is required")), isError = true)
         val delaySeconds = request.arguments?.get("delay_seconds")?.jsonPrimitive?.content
-            ?.toDoubleOrNull()?.toLong()
-            ?: return@addTool CallToolResult(content = listOf(TextContent("Error: 'delay_seconds' must be a number")), isError = true)
+            ?.toLongOrNull()
+            ?: return@addTool CallToolResult(content = listOf(TextContent("Error: 'delay_seconds' must be an integer")), isError = true)
 
         val fireAt = System.currentTimeMillis() + delaySeconds * 1000L
         val task = store.create(
@@ -86,8 +86,8 @@ fun Server.registerSchedulerTools(store: TaskStore) {
         val description = request.arguments?.get("description")?.jsonPrimitive?.content
             ?: return@addTool CallToolResult(content = listOf(TextContent("Error: 'description' is required")), isError = true)
         val intervalSeconds = request.arguments?.get("interval_seconds")?.jsonPrimitive?.content
-            ?.toDoubleOrNull()?.toLong()
-            ?: return@addTool CallToolResult(content = listOf(TextContent("Error: 'interval_seconds' must be a number")), isError = true)
+            ?.toLongOrNull()
+            ?: return@addTool CallToolResult(content = listOf(TextContent("Error: 'interval_seconds' must be an integer")), isError = true)
         if (intervalSeconds < 1L)
             return@addTool CallToolResult(content = listOf(TextContent("Error: interval_seconds must be >= 1")), isError = true)
 

@@ -22,6 +22,8 @@ class TaskScheduler(private val store: TaskStore) {
         }
     }
 
+    suspend fun tickForTest() = tick()
+
     private suspend fun tick() {
         val now = System.currentTimeMillis()
         store.getDueTasks(now).forEach { task ->
@@ -30,8 +32,12 @@ class TaskScheduler(private val store: TaskStore) {
             store.appendResult(task.id, "Executed at $ts")
             when (task.type) {
                 TaskType.PERIODIC -> {
-                    val next = now + task.intervalSeconds!! * 1000L
-                    store.updateNextRun(task.id, next)
+                    val interval = task.intervalSeconds ?: run {
+                        System.err.println("[Scheduler] '${task.name}' is PERIODIC but has no intervalSeconds — disabling")
+                        store.disable(task.id)
+                        return@forEach
+                    }
+                    store.updateNextRun(task.id, now + interval * 1000L)
                 }
                 TaskType.ONCE -> store.disable(task.id)
             }

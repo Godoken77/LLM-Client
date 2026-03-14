@@ -16,7 +16,9 @@ class TaskStore(dataDir: File) {
     private val mutex = Mutex()
     private val json = Json { prettyPrint = true; ignoreUnknownKeys = true }
 
-    private fun read(): MutableMap<String, ScheduledTask> {
+    private val cache: MutableMap<String, ScheduledTask> = loadFromDisk()
+
+    private fun loadFromDisk(): MutableMap<String, ScheduledTask> {
         if (!file.exists()) return mutableMapOf()
         return runCatching {
             json.decodeFromString<List<ScheduledTask>>(file.readText())
@@ -25,13 +27,13 @@ class TaskStore(dataDir: File) {
         }.getOrDefault(mutableMapOf())
     }
 
-    private fun write(tasks: Map<String, ScheduledTask>) {
-        file.writeText(json.encodeToString(tasks.values.toList()))
+    private fun flush() {
+        file.writeText(json.encodeToString(cache.values.toList()))
     }
 
-    suspend fun list(): List<ScheduledTask> = mutex.withLock { read().values.toList() }
+    suspend fun list(): List<ScheduledTask> = mutex.withLock { cache.values.toList() }
 
-    suspend fun get(id: String): ScheduledTask? = mutex.withLock { read()[id] }
+    suspend fun get(id: String): ScheduledTask? = mutex.withLock { cache[id] }
 
     suspend fun create(
         name: String,
@@ -40,7 +42,6 @@ class TaskStore(dataDir: File) {
         intervalSeconds: Long?,
         nextRunAt: Long,
     ): ScheduledTask = mutex.withLock {
-        val tasks = read()
         val task = ScheduledTask(
             id = UUID.randomUUID().toString(),
             name = name,
@@ -49,48 +50,47 @@ class TaskStore(dataDir: File) {
             intervalSeconds = intervalSeconds,
             nextRunAt = nextRunAt,
         )
-        tasks[task.id] = task
-        write(tasks)
+        cache[task.id] = task
+        flush()
         task
     }
 
     suspend fun appendResult(id: String, data: String): Boolean = mutex.withLock {
-        val tasks = read()
-        val task = tasks[id] ?: return@withLock false
+        val task = cache[id] ?: return@withLock false
         val result = TaskResult(timestamp = System.currentTimeMillis(), data = data)
-        tasks[id] = task.copy(
+        cache[id] = task.copy(
             results = (task.results + result).takeLast(100),
             lastRunAt = result.timestamp,
         )
-        write(tasks)
+        flush()
         true
     }
 
     suspend fun updateNextRun(id: String, nextRunAt: Long) = mutex.withLock {
-        val tasks = read()
-        val task = tasks[id] ?: return@withLock
-        tasks[id] = task.copy(nextRunAt = nextRunAt)
-        write(tasks)
+        val task = cache[id] ?: return@withLock
+        cache[id] = task.copy(nextRunAt = nextRunAt)
+        flush()
     }
 
     suspend fun disable(id: String): Boolean = mutex.withLock {
-        val tasks = read()
-        val task = tasks[id] ?: return@withLock false
-        tasks[id] = task.copy(enabled = false)
-        write(tasks)
+        val task = cache[id] ?: return@withLock false
+        cache[id] = task.copy(enabled = false)
+        flush()
         true
     }
 
     suspend fun delete(id: String): Boolean = mutex.withLock {
-        val tasks = read()
-        val removed = tasks.remove(id) != null
-        if (removed) write(tasks)
+        val removed = cache.remove(id) != null
+        if (removed) flush()
         removed
     }
 
     suspend fun getDueTasks(nowMillis: Long): List<ScheduledTask> = mutex.withLock {
-        read().values.filter { it.enabled && it.nextRunAt <= nowMillis }
+        cache.values.filter { it.enabled && it.nextRunAt <= nowMillis }
     }
 
-    suspend fun clear() = mutex.withLock { write(emptyMap()) }
+    suspend fun clear() = mutex.withLock {
+        cache.clear()
+        flush()
+    }
 }
