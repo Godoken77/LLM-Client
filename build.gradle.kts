@@ -44,3 +44,7 @@ application {
 tasks.test {
     useJUnitPlatform()
 }
+
+tasks.named("run") {
+    dependsOn(":mcp-api-server:shadowJar")
+}
