@@ -2,6 +2,7 @@ import dependency.Dependency
 import kotlinx.coroutines.runBlocking
 import mcp.StdioMcpClient
 import network.startService
+import java.io.File
 import java.io.FileDescriptor
 import java.io.FileOutputStream
 import java.io.PrintStream
@@ -18,12 +19,15 @@ private fun setUpOutput() {
 }
 
 private fun printMcpTools() = runBlocking {
-    val client = StdioMcpClient(
-        serverCommand = listOf(
-            "java", "-jar",
-            "mcp-api-server/build/libs/mcp-api-server-1.0-SNAPSHOT-all.jar"
-        )
-    )
+    val jar = File("mcp-api-server/build/libs")
+        .listFiles { f -> f.name.endsWith("-all.jar") }
+        ?.firstOrNull()
+        ?: run {
+            System.err.println("mcp-api-server JAR not found — run ./gradlew :mcp-api-server:shadowJar first")
+            return@runBlocking
+        }
+
+    val client = StdioMcpClient(serverCommand = listOf("java", "-jar", jar.path))
     try {
         client.connect()
         val tools = client.listTools()
