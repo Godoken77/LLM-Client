@@ -23,7 +23,7 @@ private fun printMcpTools() = runBlocking {
         .listFiles { f -> f.name.endsWith("-all.jar") }
         ?.firstOrNull()
         ?: run {
-            System.err.println("mcp-api-server JAR not found — run ./gradlew :mcp-api-server:shadowJar first")
+            System.err.println("mcp-api-server JAR not found (cwd=${File(".").absolutePath}) — run ./gradlew :mcp-api-server:shadowJar first")
             return@runBlocking
         }
 
