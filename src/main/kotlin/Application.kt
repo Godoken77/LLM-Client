@@ -1,15 +1,13 @@
 import dependency.Dependency
 import kotlinx.coroutines.runBlocking
-import mcp.StdioMcpClient
 import network.startService
-import java.io.File
 import java.io.FileDescriptor
 import java.io.FileOutputStream
 import java.io.PrintStream
 
 fun main() {
     setUpOutput()
-    printMcpTools()
+    connectMcpClient()
     startService(Dependency)
 }
 
@@ -18,26 +16,15 @@ private fun setUpOutput() {
     System.setErr(PrintStream(FileOutputStream(FileDescriptor.err), true, "UTF-8"))
 }
 
-private fun printMcpTools() = runBlocking {
-    val jar = File("mcp-api-server/build/libs")
-        .listFiles { f -> f.name.endsWith("-all.jar") }
-        ?.firstOrNull()
-        ?: run {
-            System.err.println("mcp-api-server JAR not found (cwd=${File(".").absolutePath}) — run ./gradlew :mcp-api-server:shadowJar first")
-            return@runBlocking
-        }
-
-    val client = StdioMcpClient(serverCommand = listOf("java", "-jar", jar.path))
+private fun connectMcpClient() = runBlocking {
     try {
-        client.connect()
-        val tools = client.listTools()
+        Dependency.mcpClient.connect()
+        val tools = Dependency.mcpClient.listTools()
         println("=== MCP Tools (${tools.size}) ===")
         tools.forEach { tool ->
             println("  [${tool.name}] ${tool.description}")
         }
     } catch (e: Exception) {
-        System.err.println("Failed to list MCP tools: ${e.message}")
-    } finally {
-        client.disconnect()
+        System.err.println("Failed to connect MCP client: ${e.message}")
     }
 }

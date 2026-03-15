@@ -48,6 +48,11 @@ import agent.impl.openai.userprofile.service.PersonalizationService
 import agent.impl.openai.userprofile.service.PersonalizationServiceImpl
 import dependency.Dependency.httpClient
 import dependency.Dependency.sessionId
+import agent.impl.openai.tools.McpToolProviderImpl
+import agent.impl.openai.tools.ToolAwareOpenaiExecutor
+import agent.impl.openai.tools.ToolAwareOpenaiExecutorImpl
+import mcp.McpClient
+import mcp.StdioMcpClient
 import store.ConversationStore
 import store.JsonConversationStore
 import store.SessionId
@@ -64,6 +69,14 @@ object Dependency {
 
     val conversationStore: ConversationStore = JsonConversationStore(Paths.get("data"))
 
+    val mcpClient: McpClient by lazy {
+        val jar = File("mcp-api-server/build/libs")
+            .listFiles { f -> f.name.endsWith("-all.jar") }
+            ?.firstOrNull()
+            ?: error("mcp-api-server JAR not found — run ./gradlew :mcp-api-server:shadowJar first")
+        StdioMcpClient(serverCommand = listOf("java", "-jar", jar.path))
+    }
+
     val httpClient: HttpClient by lazy {
         HttpClient(CIO) {
             install(ContentNegotiation) { gson() }
@@ -76,10 +89,19 @@ object Dependency {
         }
     }
 
+    val executor: ToolAwareOpenaiExecutor by lazy {
+        ToolAwareOpenaiExecutorImpl(
+            openai = OpenaiDependency.openaiApi,
+            parser = OpenaiDependency.parser,
+            toolProvider = McpToolProviderImpl(mcpClient)
+        )
+    }
+
     @OptIn(ExperimentalAtomicApi::class)
     val agentStore = AgentStore(
        dependency = OpenaiDependency,
-       sessionId = sessionId.load()
+       sessionId = sessionId.load(),
+       executor = executor
     )
 
     fun close() = httpClient.close()

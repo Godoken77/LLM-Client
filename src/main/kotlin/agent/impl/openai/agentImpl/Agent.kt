@@ -13,7 +13,7 @@ import agent.impl.openai.memory.layers.engine.MemoryLayersEngine
 import agent.impl.openai.model.Answer
 import agent.impl.openai.model.ModelReasoningEffort
 import agent.impl.openai.model.ModelVersion
-import agent.impl.openai.responseparser.ResponseParser
+import agent.impl.openai.tools.ToolAwareOpenaiExecutor
 import kotlinx.coroutines.sync.withLock
 import session.SessionLocks
 
@@ -25,7 +25,6 @@ enum class AgentMemoryMode {
 class OpenAIChatAgent(
     private val sessionId: String,
     private val openai: OpenaiApi,
-    private val parser: ResponseParser,
     private val model: ModelVersion = ModelVersion.DEFAULT_MODEL_VERSION,
     private val reasoningEffort: ModelReasoningEffort = ModelReasoningEffort.DEFAULT_REASONING_EFFORT,
     private var memoryMode: AgentMemoryMode = AgentMemoryMode.MEMORY_LAYERS,
@@ -33,7 +32,8 @@ class OpenAIChatAgent(
     private val layersEngine: MemoryLayersEngine,
     private val invariantRepository: InvariantRepository,
     private val invariantChecker: InvariantChecker,
-    private val refusalBuilder: InvariantRefusalBuilder
+    private val refusalBuilder: InvariantRefusalBuilder,
+    private val executor: ToolAwareOpenaiExecutor
 ) : Agent {
 
     private val mutex = SessionLocks.mutexFor(sessionId)
@@ -67,26 +67,14 @@ class OpenAIChatAgent(
 
         val requestCheck = invariantChecker.checkUserRequest(invariants, userText)
         if (!requestCheck.allowed) {
-            val refusal = refusalBuilder.buildRefusal(userText, requestCheck)
-            return@withLock Answer(refusal, null)
+            return@withLock Answer(refusalBuilder.buildRefusal(userText, requestCheck), null)
         }
 
         val engine = currentEngine()
         val built = engine.buildInput(sessionId, userText)
-
         val historyTokens = openai.inputTokens(model.version, built.input)
 
-        val requestMap: Map<String, Any> = mapOf(
-            "model" to model.version,
-            "input" to built.input,
-            "reasoning" to mapOf(
-                "effort" to reasoningEffort.level,
-                "summary" to "concise"
-            )
-        )
-
-        val raw = openai.responses(requestMap)
-        val parsed = parser.parse(raw)
+        val parsed = executor.execute(model.version, reasoningEffort.level, built.input)
 
         val replyCheck = invariantChecker.checkAssistantReply(invariants, parsed.reply)
         val finalReply = if (replyCheck.allowed) {
@@ -97,8 +85,7 @@ class OpenAIChatAgent(
 
         engine.saveAssistantReply(sessionId, finalReply)
 
-        val stats = parsed.stats?.copy(historyTokens = historyTokens)
-        Answer(finalReply, stats)
+        Answer(finalReply, parsed.stats?.copy(historyTokens = historyTokens))
     }
 
     override suspend fun reset() = mutex.withLock {
