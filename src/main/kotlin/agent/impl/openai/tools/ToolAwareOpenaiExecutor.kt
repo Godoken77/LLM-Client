@@ -50,7 +50,8 @@ class ToolAwareOpenaiExecutorImpl(
                     "name" to call.name,
                     "arguments" to call.argumentsJson
                 )
-                val output = toolProvider!!.invoke(call.name, call.argumentsJson)
+                val output = toolProvider?.invoke(call.name, call.argumentsJson)
+                    ?: "Error: tool '${call.name}' was requested but no tool provider is configured"
                 val outputMsg = mapOf(
                     "type" to "function_call_output",
                     "call_id" to call.callId,
