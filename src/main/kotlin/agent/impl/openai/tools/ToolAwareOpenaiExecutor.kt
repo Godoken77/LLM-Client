@@ -25,6 +25,7 @@ class ToolAwareOpenaiExecutorImpl(
     ): Answer {
         val tools = toolProvider?.getToolDefinitions() ?: emptyList()
         val mutableInput = input.toMutableList()
+        val collectedToolMessages = mutableListOf<Map<String, Any>>()
 
         while (true) {
             val requestMap = mutableMapOf<String, Any>(
@@ -37,21 +38,29 @@ class ToolAwareOpenaiExecutorImpl(
             val raw = openai.responses(requestMap)
             val functionCalls = parser.extractFunctionCalls(raw)
 
-            if (functionCalls.isEmpty()) return parser.parse(raw)
+            if (functionCalls.isEmpty()) {
+                val answer = parser.parse(raw)
+                return answer.copy(toolMessages = collectedToolMessages)
+            }
 
             for (call in functionCalls) {
-                mutableInput.add(mapOf(
+                val callMsg = mapOf(
                     "type" to "function_call",
                     "call_id" to call.callId,
                     "name" to call.name,
                     "arguments" to call.argumentsJson
-                ))
-                val output = toolProvider!!.invoke(call.name, call.argumentsJson)
-                mutableInput.add(mapOf(
+                )
+                val output = toolProvider?.invoke(call.name, call.argumentsJson)
+                    ?: "Error: tool '${call.name}' was requested but no tool provider is configured"
+                val outputMsg = mapOf(
                     "type" to "function_call_output",
                     "call_id" to call.callId,
                     "output" to output
-                ))
+                )
+                mutableInput.add(callMsg)
+                mutableInput.add(outputMsg)
+                collectedToolMessages.add(callMsg)
+                collectedToolMessages.add(outputMsg)
             }
         }
     }

@@ -37,6 +37,15 @@ class MemoryLayersEngine(
         return BuiltInput(input = input)
     }
 
+    override suspend fun saveToolMessages(sessionId: String, messages: List<Map<String, Any>>) {
+        if (messages.isEmpty()) return
+        var memory = memoryRepository.load(sessionId)
+        val short = memory.shortTerm.messages.toMutableList()
+        short.addAll(messages)
+        memory = memory.copy(shortTerm = memory.shortTerm.copy(messages = short))
+        memoryRepository.save(sessionId, memory)
+    }
+
     override suspend fun saveAssistantReply(sessionId: String, reply: String) {
         var memory = memoryRepository.load(sessionId)
         memory = memoryRouter.updateAfterAssistantMessage(memory, reply)

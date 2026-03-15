@@ -83,6 +83,7 @@ class OpenAIChatAgent(
             refusalBuilder.buildRefusal(userText, replyCheck)
         }
 
+        if (replyCheck.allowed) engine.saveToolMessages(sessionId, parsed.toolMessages)
         engine.saveAssistantReply(sessionId, finalReply)
 
         Answer(finalReply, parsed.stats?.copy(historyTokens = historyTokens))
