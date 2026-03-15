@@ -49,8 +49,8 @@ import agent.impl.openai.userprofile.service.PersonalizationServiceImpl
 import dependency.Dependency.httpClient
 import dependency.Dependency.sessionId
 import agent.impl.openai.tools.McpToolProviderImpl
+import agent.impl.openai.tools.PipelinedToolAwareExecutorImpl
 import agent.impl.openai.tools.ToolAwareOpenaiExecutor
-import agent.impl.openai.tools.ToolAwareOpenaiExecutorImpl
 import mcp.McpClient
 import mcp.StdioMcpClient
 import store.ConversationStore
@@ -77,6 +77,22 @@ object Dependency {
         StdioMcpClient(serverCommand = listOf("java", "-jar", jar.path))
     }
 
+    val notesClient: McpClient by lazy {
+        val jar = File("mcp-notes-server/build/libs")
+            .listFiles { f -> f.name.endsWith("-all.jar") }
+            ?.firstOrNull()
+            ?: error("mcp-notes-server JAR not found — run ./gradlew :mcp-notes-server:shadowJar first")
+        StdioMcpClient(serverCommand = listOf("java", "-jar", jar.path))
+    }
+
+    val weatherClient: McpClient by lazy {
+        val jar = File("mcp-weather-server/build/libs")
+            .listFiles { f -> f.name.endsWith("-all.jar") }
+            ?.firstOrNull()
+            ?: error("mcp-weather-server JAR not found — run ./gradlew :mcp-weather-server:shadowJar first")
+        StdioMcpClient(serverCommand = listOf("java", "-jar", jar.path))
+    }
+
     val httpClient: HttpClient by lazy {
         HttpClient(CIO) {
             install(ContentNegotiation) { gson() }
@@ -90,10 +106,14 @@ object Dependency {
     }
 
     val executor: ToolAwareOpenaiExecutor by lazy {
-        ToolAwareOpenaiExecutorImpl(
+        PipelinedToolAwareExecutorImpl(
             openai = OpenaiDependency.openaiApi,
             parser = OpenaiDependency.parser,
-            toolProvider = McpToolProviderImpl(mcpClient)
+            stages = listOf(
+                McpToolProviderImpl(mcpClient),    // Stage 1: scheduler
+                McpToolProviderImpl(notesClient),  // Stage 2: notes
+                McpToolProviderImpl(weatherClient) // Stage 3: weather
+            )
         )
     }
 
