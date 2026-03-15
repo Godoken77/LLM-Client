@@ -6,8 +6,15 @@ import agent.impl.openai.api.dto.Response
 import agent.impl.openai.model.Answer
 import agent.impl.openai.model.TokenStats
 
+data class FunctionCall(
+    val callId: String,
+    val name: String,
+    val argumentsJson: String
+)
+
 interface ResponseParser {
     fun parse(raw: Response): Answer
+    fun extractFunctionCalls(raw: Response): List<FunctionCall>
 }
 
 class GsonResponseParserImpl(
@@ -65,6 +72,22 @@ class GsonResponseParserImpl(
         } catch (e: Exception) {
             Answer("Ошибка разбора ответа: ${e.message}\n${raw.body}", null)
         }
+    }
+
+    override fun extractFunctionCalls(raw: Response): List<FunctionCall> {
+        if (raw.body.isBlank() || raw.status !in 200..299) return emptyList()
+        return runCatching {
+            val root = gson.fromJson(raw.body, JsonObject::class.java)
+            val output = root.getAsJsonArray("output") ?: return emptyList()
+            output.mapNotNull { item ->
+                val obj = item.asJsonObject
+                if (obj.get("type")?.asString != "function_call") return@mapNotNull null
+                val callId = obj.get("call_id")?.asString ?: return@mapNotNull null
+                val name = obj.get("name")?.asString ?: return@mapNotNull null
+                val arguments = obj.get("arguments")?.asString ?: "{}"
+                FunctionCall(callId, name, arguments)
+            }
+        }.getOrDefault(emptyList())
     }
 
     private fun extractOutputText(root: JsonObject): String {

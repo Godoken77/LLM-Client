@@ -2,8 +2,8 @@ package store.impl
 
 import agent.Agent
 import agent.impl.openai.agentImpl.OpenAIChatAgent
+import agent.impl.openai.tools.ToolAwareOpenaiExecutor
 import dependency.OpenaiDependency
-import mcp.McpClient
 import store.AgentStore
 import store.SessionId
 import java.util.concurrent.ConcurrentHashMap
@@ -11,7 +11,7 @@ import java.util.concurrent.ConcurrentHashMap
 class AgentStore(
     private val dependency: OpenaiDependency,
     private val sessionId: SessionId,
-    private val mcpClient: McpClient? = null
+    private val executor: ToolAwareOpenaiExecutor
 ): AgentStore {
     private val agents = ConcurrentHashMap<String, Agent>()
 
@@ -20,13 +20,12 @@ class AgentStore(
             OpenAIChatAgent(
                 sessionId = sessionId,
                 openai = dependency.openaiApi,
-                parser = dependency.parser,
                 contextEngine = dependency.contextEngine,
                 layersEngine = dependency.layersEngine,
                 invariantRepository = dependency.invariantRepository,
                 invariantChecker = dependency.invariantChecker,
                 refusalBuilder = dependency.invariantRefusalBuilder,
-                mcpClient = mcpClient
+                executor = executor
             )
         }
     }

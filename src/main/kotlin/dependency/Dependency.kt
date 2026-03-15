@@ -48,6 +48,9 @@ import agent.impl.openai.userprofile.service.PersonalizationService
 import agent.impl.openai.userprofile.service.PersonalizationServiceImpl
 import dependency.Dependency.httpClient
 import dependency.Dependency.sessionId
+import agent.impl.openai.tools.McpToolProviderImpl
+import agent.impl.openai.tools.ToolAwareOpenaiExecutor
+import agent.impl.openai.tools.ToolAwareOpenaiExecutorImpl
 import mcp.McpClient
 import mcp.StdioMcpClient
 import store.ConversationStore
@@ -86,11 +89,19 @@ object Dependency {
         }
     }
 
+    val executor: ToolAwareOpenaiExecutor by lazy {
+        ToolAwareOpenaiExecutorImpl(
+            openai = OpenaiDependency.openaiApi,
+            parser = OpenaiDependency.parser,
+            toolProvider = McpToolProviderImpl(mcpClient)
+        )
+    }
+
     @OptIn(ExperimentalAtomicApi::class)
     val agentStore = AgentStore(
        dependency = OpenaiDependency,
        sessionId = sessionId.load(),
-       mcpClient = mcpClient
+       executor = executor
     )
 
     fun close() = httpClient.close()
