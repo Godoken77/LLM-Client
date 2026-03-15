@@ -7,6 +7,7 @@ data class BuiltInput(
 interface MemoryEngine {
     suspend fun onModeActivated(sessionId: String)
     suspend fun buildInput(sessionId: String, userText: String): BuiltInput
+    suspend fun saveToolMessages(sessionId: String, messages: List<Map<String, Any>>)
     suspend fun saveAssistantReply(sessionId: String, reply: String)
     suspend fun reset(sessionId: String)
 }

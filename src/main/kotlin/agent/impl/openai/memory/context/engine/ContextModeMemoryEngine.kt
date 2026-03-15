@@ -57,6 +57,14 @@ class ContextModeMemoryEngine(
         return BuiltInput(input = input)
     }
 
+    override suspend fun saveToolMessages(sessionId: String, messages: List<Map<String, Any>>) {
+        if (messages.isEmpty()) return
+        var state = conversationRepository.load(sessionId)
+        val msgs = state.messages.toMutableList()
+        msgs.addAll(messages)
+        conversationRepository.save(sessionId, state.copy(messages = msgs))
+    }
+
     override suspend fun saveAssistantReply(sessionId: String, reply: String) {
         var state = conversationRepository.load(sessionId)
         val msgs = state.messages.toMutableList()
