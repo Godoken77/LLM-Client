@@ -6,14 +6,6 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
 
-typealias Messages = MutableList<Map<String, Any>>
-
-data class ConversationState(
-    val summary: String = "",
-    val messages: Messages = mutableListOf(),
-    val facts: MutableMap<String, String> = mutableMapOf(),
-)
-
 interface ConversationStore {
     fun loadState(sessionId: String): ConversationState
     fun saveState(sessionId: String, state: ConversationState)

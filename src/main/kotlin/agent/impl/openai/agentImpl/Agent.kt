@@ -17,11 +17,6 @@ import agent.impl.openai.tools.ToolAwareOpenaiExecutor
 import kotlinx.coroutines.sync.withLock
 import session.SessionLocks
 
-enum class AgentMemoryMode {
-    CONTEXT_MODE,
-    MEMORY_LAYERS
-}
-
 class OpenAIChatAgent(
     private val sessionId: String,
     private val openai: OpenaiApi,

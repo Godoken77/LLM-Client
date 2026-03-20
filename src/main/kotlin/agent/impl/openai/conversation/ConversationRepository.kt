@@ -3,12 +3,6 @@ package agent.impl.openai.conversation
 import store.ConversationState
 import store.ConversationStore
 
-interface ConversationRepository {
-    fun load(sessionId: String): ConversationState
-    fun save(sessionId: String, state: ConversationState)
-    fun delete(sessionId: String)
-}
-
 class ConversationRepositoryImpl(
     private val conversationStore: ConversationStore
 ) : ConversationRepository {
