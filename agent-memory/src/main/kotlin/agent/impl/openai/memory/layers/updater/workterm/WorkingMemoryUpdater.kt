@@ -3,7 +3,6 @@ package agent.impl.openai.memory.layers.updater.workterm
 import agent.impl.openai.memory.layers.model.WorkingMemory
 import agent.impl.openai.memory.ports.MemoryLlmClient
 import agent.impl.openai.memory.ports.MemoryMessageFactory
-import agent.impl.openai.model.ModelVersion
 import agent.impl.openai.taskstages.stateupdater.TaskStateUpdater
 import com.google.gson.Gson
 import com.google.gson.JsonObject
@@ -20,7 +19,7 @@ class WorkingMemoryUpdaterImpl(
     private val messageFactory: MemoryMessageFactory,
     private val taskStateUpdater: TaskStateUpdater,
     private val gson: Gson = Gson(),
-    private val model: ModelVersion = ModelVersion.DEFAULT_MODEL_VERSION
+    private val model: String = "gpt-5.2"
 ) : WorkingMemoryUpdater {
 
     override suspend fun update(
@@ -51,7 +50,7 @@ $dialogText
 """.trimIndent()
 
         val req = mapOf(
-            "model" to model.version,
+            "model" to model,
             "input" to listOf(
                 messageFactory.msg("developer", "Ты обновляешь рабочую память. Верни только JSON."),
                 messageFactory.msg("user", prompt)

@@ -1,46 +1,44 @@
 package agent.impl.openai.memory.context.engine
 
-import agent.impl.openai.conversation.ConversationRepository
 import agent.impl.openai.memory.context.ContextMode
 import agent.impl.openai.memory.context.ContextStrategy
-import agent.impl.openai.memory.engine.BuiltInput
 import agent.impl.openai.memory.engine.MemoryEngine
 import agent.impl.openai.memory.ports.MemoryContextPromptBuilder
+import agent.impl.openai.memory.ports.MemoryConversationRepository
 import agent.impl.openai.memory.ports.MemoryMessageFactory
 import agent.impl.openai.memory.ports.MemoryStateNormalizer
-import agent.impl.openai.model.ModelInstruction
 
 class ContextModeMemoryEngine(
     private val sessionId: String,
-    private val conversationRepository: ConversationRepository,
+    private val conversationRepository: MemoryConversationRepository,
     private val normalizer: MemoryStateNormalizer,
     private val prompts: MemoryContextPromptBuilder,
     private val messageFactory: MemoryMessageFactory,
     private val strategies: Map<ContextMode, ContextStrategy>,
-    private val systemInstruction: ModelInstruction,
+    private val systemInstruction: String,
     private var mode: ContextMode,
     private val keepLastN: Int = 12
 ) : MemoryEngine {
 
-    fun getContextMode(): ContextMode = mode
+    override fun getContextMode(): ContextMode = mode
 
-    suspend fun setContextMode(newMode: ContextMode) {
+    override suspend fun setContextMode(newMode: ContextMode) {
         mode = newMode
-        onModeActivated(sessionId)
+        onModeActivated()
     }
 
-    override suspend fun onModeActivated(sessionId: String) {
+    override suspend fun onModeActivated() {
         var state = conversationRepository.load(sessionId)
         val strategy = strategies[mode] ?: error("No strategy for mode=$mode")
         state = strategy.onModeActivated(state)
         conversationRepository.save(sessionId, state)
     }
 
-    override suspend fun buildInput(sessionId: String, userText: String): BuiltInput {
+    override suspend fun buildInput(userText: String): List<Map<String, Any>> {
         var state = conversationRepository.load(sessionId)
         state = normalizer.normalize(state)
 
-        state = prompts.ensureDeveloper(state, systemInstruction.instruction)
+        state = prompts.ensureDeveloper(state, systemInstruction)
         state = prompts.appendUser(state, userText)
 
         val strategy = strategies[mode] ?: error("No strategy for mode=$mode")
@@ -48,16 +46,14 @@ class ContextModeMemoryEngine(
 
         conversationRepository.save(sessionId, state)
 
-        val input = strategy.buildInputForLLM(
+        return strategy.buildInputForLLM(
             state = state,
-            systemInstruction = systemInstruction.instruction,
+            systemInstruction = systemInstruction,
             keepLastN = keepLastN
         )
-
-        return BuiltInput(input = input)
     }
 
-    override suspend fun saveToolMessages(sessionId: String, messages: List<Map<String, Any>>) {
+    override suspend fun saveToolMessages(messages: List<Map<String, Any>>) {
         if (messages.isEmpty()) return
         var state = conversationRepository.load(sessionId)
         val msgs = state.messages.toMutableList()
@@ -65,7 +61,7 @@ class ContextModeMemoryEngine(
         conversationRepository.save(sessionId, state.copy(messages = msgs))
     }
 
-    override suspend fun saveAssistantReply(sessionId: String, reply: String) {
+    override suspend fun saveAssistantReply(reply: String) {
         var state = conversationRepository.load(sessionId)
         val msgs = state.messages.toMutableList()
         msgs.add(messageFactory.msg("assistant", reply))
@@ -73,7 +69,7 @@ class ContextModeMemoryEngine(
         conversationRepository.save(sessionId, state)
     }
 
-    override suspend fun reset(sessionId: String) {
+    override suspend fun reset() {
         conversationRepository.delete(sessionId)
     }
 }

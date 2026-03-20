@@ -148,7 +148,6 @@ object OpenaiDependency {
     val llmClientAdapter = OpenaiMemoryLlmClient(openaiApi)
     val messageFactoryAdapter = MessageFactoryAdapter(messageFactory)
     val userProfileServiceAdapter = UserProfileServiceAdapter(profileRepository, personalizationService)
-    val invariantServiceAdapter = InvariantServiceAdapter(FileInvariantRepository(), InvariantPromptBuilderImpl())
     val compressorAdapter = CompressorAdapter(compressor)
     val normalizerAdapter = StateNormalizerAdapter(normalizer)
     val promptBuilderAdapter = PromptBuilderAdapter(prompts)
@@ -188,6 +187,7 @@ object OpenaiDependency {
     val invariantRepository = FileInvariantRepository()
     val invariantChecker = RuleBasedInvariantChecker()
     val invariantPromptBuilder = InvariantPromptBuilderImpl()
+    val invariantServiceAdapter = InvariantServiceAdapter(invariantRepository, invariantPromptBuilder)
     val invariantRefusalBuilder = InvariantRefusalBuilderImpl()
 
     val memoryPromptBuilder = MemoryPromptBuilder(
@@ -201,7 +201,7 @@ object OpenaiDependency {
         memoryRepository = memoryRepository,
         memoryRouter = memoryRouter,
         promptBuilder = memoryPromptBuilder,
-        systemInstruction = ModelInstruction.DEFAULT_SYSTEM_INSTRUCTION,
+        systemInstruction = ModelInstruction.DEFAULT_SYSTEM_INSTRUCTION.instruction,
         keepLastN = 12,
         sessionId = sessionId.load(),
     )
@@ -275,7 +275,7 @@ object OpenaiDependency {
         prompts = promptBuilderAdapter,
         messageFactory = messageFactoryAdapter,
         strategies = strategies,
-        systemInstruction = ModelInstruction.DEFAULT_SYSTEM_INSTRUCTION,
+        systemInstruction = ModelInstruction.DEFAULT_SYSTEM_INSTRUCTION.instruction,
         mode = ContextMode.SUMMARY,
         keepLastN = 12
     )

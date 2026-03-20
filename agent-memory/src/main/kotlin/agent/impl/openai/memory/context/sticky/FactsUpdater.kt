@@ -4,7 +4,6 @@ import com.google.gson.Gson
 import com.google.gson.JsonObject
 import agent.impl.openai.memory.ports.MemoryLlmClient
 import agent.impl.openai.memory.ports.MemoryMessageFactory
-import agent.impl.openai.model.ModelVersion
 
 interface FactsUpdater {
     suspend fun updateFacts(
@@ -18,7 +17,7 @@ class FactsUpdaterImpl(
     private val llmClient: MemoryLlmClient,
     private val mf: MemoryMessageFactory,
     private val gson: Gson = Gson(),
-    private val model: ModelVersion = ModelVersion.DEFAULT_MODEL_VERSION
+    private val model: String = "gpt-5.2"
 ) : FactsUpdater {
 
     override suspend fun updateFacts(
@@ -61,7 +60,7 @@ $lastUserMessage
 """.trimIndent()
 
         val req = mapOf(
-            "model" to model.version,
+            "model" to model,
             "input" to listOf(
                 mf.msg("developer", "Ты — модуль памяти facts. Возвращай только JSON."),
                 mf.msg("user", prompt)

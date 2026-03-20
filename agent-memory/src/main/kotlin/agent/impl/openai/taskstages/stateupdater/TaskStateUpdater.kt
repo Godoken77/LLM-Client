@@ -2,7 +2,6 @@ package agent.impl.openai.taskstages.stateupdater
 
 import agent.impl.openai.memory.ports.MemoryLlmClient
 import agent.impl.openai.memory.ports.MemoryMessageFactory
-import agent.impl.openai.model.ModelVersion
 import agent.impl.openai.taskstages.InvalidTaskTransitionException
 import agent.impl.openai.taskstages.TaskStateMachine
 import agent.impl.openai.taskstages.TaskTransition
@@ -23,7 +22,7 @@ class TaskStateUpdaterImpl(
     private val messageFactory: MemoryMessageFactory,
     private val stateMachineService: TaskStateMachineService,
     private val gson: Gson = Gson(),
-    private val model: ModelVersion = ModelVersion.DEFAULT_MODEL_VERSION
+    private val model: String = "gpt-5.2"
 ) : TaskStateUpdater {
 
     override suspend fun update(
@@ -63,7 +62,7 @@ $dialogText
 """.trimIndent()
 
         val req = mapOf(
-            "model" to model.version,
+            "model" to model,
             "input" to listOf(
                 messageFactory.msg("developer", "Ты определяешь только событие перехода автомата. Возвращай только JSON."),
                 messageFactory.msg("user", prompt)

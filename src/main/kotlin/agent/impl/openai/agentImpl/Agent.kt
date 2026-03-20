@@ -7,9 +7,7 @@ import agent.impl.openai.invariants.invariantchecker.InvariantChecker
 import agent.impl.openai.invariants.refusalbuilder.InvariantRefusalBuilder
 import agent.impl.openai.invariants.repository.InvariantRepository
 import agent.impl.openai.memory.context.ContextMode
-import agent.impl.openai.memory.context.engine.ContextModeMemoryEngine
 import agent.impl.openai.memory.engine.MemoryEngine
-import agent.impl.openai.memory.layers.engine.MemoryLayersEngine
 import agent.impl.openai.model.Answer
 import agent.impl.openai.model.ModelReasoningEffort
 import agent.impl.openai.model.ModelVersion
@@ -23,8 +21,8 @@ class OpenAIChatAgent(
     private val model: ModelVersion = ModelVersion.DEFAULT_MODEL_VERSION,
     private val reasoningEffort: ModelReasoningEffort = ModelReasoningEffort.DEFAULT_REASONING_EFFORT,
     private var memoryMode: AgentMemoryMode = AgentMemoryMode.MEMORY_LAYERS,
-    private val contextEngine: ContextModeMemoryEngine,
-    private val layersEngine: MemoryLayersEngine,
+    private val contextEngine: MemoryEngine,
+    private val layersEngine: MemoryEngine,
     private val invariantRepository: InvariantRepository,
     private val invariantChecker: InvariantChecker,
     private val refusalBuilder: InvariantRefusalBuilder,
@@ -33,17 +31,15 @@ class OpenAIChatAgent(
 
     private val mutex = SessionLocks.mutexFor(sessionId)
 
-    private fun currentEngine(): MemoryEngine {
-        return when (memoryMode) {
-            AgentMemoryMode.CONTEXT_MODE -> contextEngine
-            AgentMemoryMode.MEMORY_LAYERS -> layersEngine
-        }
+    private fun currentEngine(): MemoryEngine = when (memoryMode) {
+        AgentMemoryMode.CONTEXT_MODE -> contextEngine
+        AgentMemoryMode.MEMORY_LAYERS -> layersEngine
     }
 
     override fun setAgentMemoryMode(newMode: AgentMemoryMode) = runBlocking {
         mutex.withLock {
             memoryMode = newMode
-            currentEngine().onModeActivated(sessionId)
+            currentEngine().onModeActivated()
         }
     }
 
@@ -66,10 +62,10 @@ class OpenAIChatAgent(
         }
 
         val engine = currentEngine()
-        val built = engine.buildInput(sessionId, userText)
-        val historyTokens = openai.inputTokens(model.version, built.input)
+        val input = engine.buildInput(userText)
+        val historyTokens = openai.inputTokens(model.version, input)
 
-        val parsed = executor.execute(model.version, reasoningEffort.level, built.input)
+        val parsed = executor.execute(model.version, reasoningEffort.level, input)
 
         val replyCheck = invariantChecker.checkAssistantReply(invariants, parsed.reply)
         val finalReply = if (replyCheck.allowed) {
@@ -78,14 +74,14 @@ class OpenAIChatAgent(
             refusalBuilder.buildRefusal(userText, replyCheck)
         }
 
-        if (replyCheck.allowed) engine.saveToolMessages(sessionId, parsed.toolMessages)
-        engine.saveAssistantReply(sessionId, finalReply)
+        if (replyCheck.allowed) engine.saveToolMessages(parsed.toolMessages)
+        engine.saveAssistantReply(finalReply)
 
         Answer(finalReply, parsed.stats?.copy(historyTokens = historyTokens))
     }
 
     override suspend fun reset() = mutex.withLock {
-        contextEngine.reset(sessionId)
-        layersEngine.reset(sessionId)
+        contextEngine.reset()
+        layersEngine.reset()
     }
 }
