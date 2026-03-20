@@ -3,3 +3,4 @@ plugins {
 }
 rootProject.name = "LLM-Client"
 include("mcp-api-server")
+include("rag-indexer")
