@@ -47,8 +47,12 @@ tasks.test {
 
 tasks.named("run") {
     dependsOn(":mcp-api-server:shadowJar")
+    dependsOn(":mcp-notes-server:shadowJar")
+    dependsOn(":mcp-weather-server:shadowJar")
 }
 
 tasks.named("classes") {
     dependsOn(":mcp-api-server:shadowJar")
+    dependsOn(":mcp-notes-server:shadowJar")
+    dependsOn(":mcp-weather-server:shadowJar")
 }

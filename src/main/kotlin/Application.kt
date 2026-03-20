@@ -7,7 +7,7 @@ import java.io.PrintStream
 
 fun main() {
     setUpOutput()
-    connectMcpClient()
+    connectMcpClients()
     startService(Dependency)
 }
 
@@ -16,15 +16,20 @@ private fun setUpOutput() {
     System.setErr(PrintStream(FileOutputStream(FileDescriptor.err), true, "UTF-8"))
 }
 
-private fun connectMcpClient() = runBlocking {
-    try {
-        Dependency.mcpClient.connect()
-        val tools = Dependency.mcpClient.listTools()
-        println("=== MCP Tools (${tools.size}) ===")
-        tools.forEach { tool ->
-            println("  [${tool.name}] ${tool.description}")
+private fun connectMcpClients() = runBlocking {
+    val servers = listOf(
+        "scheduler" to Dependency.mcpClient,
+        "notes"     to Dependency.notesClient,
+        "weather"   to Dependency.weatherClient,
+    )
+    for ((name, client) in servers) {
+        try {
+            client.connect()
+            val tools = client.listTools()
+            println("=== MCP [$name] — ${tools.size} tools ===")
+            tools.forEach { tool -> println("  [${tool.name}] ${tool.description}") }
+        } catch (e: Exception) {
+            System.err.println("Failed to connect MCP [$name]: ${e.message}")
         }
-    } catch (e: Exception) {
-        System.err.println("Failed to connect MCP client: ${e.message}")
     }
 }
