@@ -5,3 +5,4 @@ rootProject.name = "LLM-Client"
 include("mcp-api-server")
 include("mcp-notes-server")
 include("mcp-weather-server")
+include("rag-indexer")
