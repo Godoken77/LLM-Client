@@ -11,10 +11,28 @@ import io.ktor.serialization.gson.gson
 import agent.impl.openai.api.OpenAIClient
 import agent.impl.openai.api.OpenaiApi
 import agent.impl.openai.compsessor.ConversationCompressorImpl
+import agent.impl.openai.memory.context.ContextMode
+import agent.impl.openai.memory.context.ContextStrategy
+import agent.impl.openai.memory.context.engine.ContextModeMemoryEngine
 import agent.impl.openai.memory.context.slider.SlidingWindowStrategy
 import agent.impl.openai.memory.context.sticky.FactsUpdaterImpl
 import agent.impl.openai.memory.context.sticky.StickyFactsStrategy
 import agent.impl.openai.memory.context.summary.SummaryStrategy
+import agent.impl.openai.memory.layers.engine.MemoryLayersEngine
+import agent.impl.openai.memory.layers.prompt.MemoryPromptBuilder
+import agent.impl.openai.memory.layers.repository.FileMemoryRepository
+import agent.impl.openai.memory.layers.repository.MemoryRepository
+import agent.impl.openai.memory.layers.router.MemoryRouter
+import agent.impl.openai.memory.layers.router.MemoryRouterImpl
+import agent.impl.openai.memory.layers.updater.longterm.LongTermMemoryUpdaterImpl
+import agent.impl.openai.memory.layers.updater.workterm.WorkingMemoryUpdaterImpl
+import agent.impl.openai.memory.adapters.CompressorAdapter
+import agent.impl.openai.memory.adapters.InvariantServiceAdapter
+import agent.impl.openai.memory.adapters.MessageFactoryAdapter
+import agent.impl.openai.memory.adapters.OpenaiMemoryLlmClient
+import agent.impl.openai.memory.adapters.PromptBuilderAdapter
+import agent.impl.openai.memory.adapters.StateNormalizerAdapter
+import agent.impl.openai.memory.adapters.UserProfileServiceAdapter
 import agent.impl.openai.conversation.ConversationRepositoryImpl
 import agent.impl.openai.invariants.AssistantInvariant
 import agent.impl.openai.invariants.InvariantSet
@@ -24,17 +42,6 @@ import agent.impl.openai.invariants.invariantchecker.RuleBasedInvariantChecker
 import agent.impl.openai.invariants.prompt.InvariantPromptBuilderImpl
 import agent.impl.openai.invariants.refusalbuilder.InvariantRefusalBuilderImpl
 import agent.impl.openai.invariants.repository.FileInvariantRepository
-import agent.impl.openai.memory.context.ContextMode
-import agent.impl.openai.memory.context.ContextStrategy
-import agent.impl.openai.memory.context.engine.ContextModeMemoryEngine
-import agent.impl.openai.memory.layers.engine.MemoryLayersEngine
-import agent.impl.openai.memory.layers.prompt.MemoryPromptBuilder
-import agent.impl.openai.memory.layers.repository.FileMemoryRepository
-import agent.impl.openai.memory.layers.repository.MemoryRepository
-import agent.impl.openai.memory.layers.router.MemoryRouter
-import agent.impl.openai.memory.layers.router.MemoryRouterImpl
-import agent.impl.openai.memory.layers.updater.longterm.LongTermMemoryUpdaterImpl
-import agent.impl.openai.memory.layers.updater.workterm.WorkingMemoryUpdaterImpl
 import agent.impl.openai.messages.MessageFactoryImpl
 import agent.impl.openai.model.ModelInstruction
 import agent.impl.openai.prompt.PromptBuilderImpl
@@ -132,7 +139,7 @@ object OpenaiDependency {
     val openaiApi: OpenaiApi by lazy {
         OpenAIClient(
             http = httpClient,
-            apiKey = System.getenv("OPENAI_API_KEY") ?:  error("Open API key not found")
+            apiKey = System.getenv("OPENAI_API_KEY") ?: error("Open API key not found")
         )
     }
 
@@ -157,34 +164,42 @@ object OpenaiDependency {
         summarizer = summarizer
     )
 
+    // Adapters — bridge main implementations to agent-memory port interfaces
+    val llmClientAdapter = OpenaiMemoryLlmClient(openaiApi)
+    val messageFactoryAdapter = MessageFactoryAdapter(messageFactory)
+    val userProfileServiceAdapter = UserProfileServiceAdapter(profileRepository, personalizationService)
+    val compressorAdapter = CompressorAdapter(compressor)
+    val normalizerAdapter = StateNormalizerAdapter(normalizer)
+    val promptBuilderAdapter = PromptBuilderAdapter(prompts)
+
     val factsUpdater = FactsUpdaterImpl(
-        openai = openaiApi,
-        mf = messageFactory
+        llmClient = llmClientAdapter,
+        mf = messageFactoryAdapter
     )
 
     val taskStateMachineService = TaskStateMachineServiceImpl()
 
     val taskStateUpdater = TaskStateUpdaterImpl(
-        openai = openaiApi,
-        messageFactory = messageFactory,
+        llmClient = llmClientAdapter,
+        messageFactory = messageFactoryAdapter,
         stateMachineService = taskStateMachineService
     )
 
     val workingMemoryUpdater = WorkingMemoryUpdaterImpl(
-        openai = openaiApi,
-        messageFactory = messageFactory,
+        llmClient = llmClientAdapter,
+        messageFactory = messageFactoryAdapter,
         taskStateUpdater = taskStateUpdater
     )
 
     val longTermMemoryUpdater = LongTermMemoryUpdaterImpl(
-        openai = openaiApi,
-        messageFactory = messageFactory
+        llmClient = llmClientAdapter,
+        messageFactory = messageFactoryAdapter
     )
 
     val memoryRepository: MemoryRepository = FileMemoryRepository(File("./data"))
 
     val memoryRouter: MemoryRouter = MemoryRouterImpl(
-        messageFactory = messageFactory,
+        messageFactory = messageFactoryAdapter,
         workingMemoryUpdater = workingMemoryUpdater,
         longTermMemoryUpdater = longTermMemoryUpdater,
     )
@@ -192,14 +207,13 @@ object OpenaiDependency {
     val invariantRepository = FileInvariantRepository()
     val invariantChecker = RuleBasedInvariantChecker()
     val invariantPromptBuilder = InvariantPromptBuilderImpl()
+    val invariantServiceAdapter = InvariantServiceAdapter(invariantRepository, invariantPromptBuilder)
     val invariantRefusalBuilder = InvariantRefusalBuilderImpl()
 
     val memoryPromptBuilder = MemoryPromptBuilder(
-        messageFactory = messageFactory,
-        profileRepository = profileRepository,
-        personalizationService = personalizationService,
-        invariantRepository = invariantRepository,
-        invariantPromptBuilder = invariantPromptBuilder
+        messageFactory = messageFactoryAdapter,
+        userProfileService = userProfileServiceAdapter,
+        invariantService = invariantServiceAdapter
     )
 
     @OptIn(ExperimentalAtomicApi::class)
@@ -207,7 +221,7 @@ object OpenaiDependency {
         memoryRepository = memoryRepository,
         memoryRouter = memoryRouter,
         promptBuilder = memoryPromptBuilder,
-        systemInstruction = ModelInstruction.DEFAULT_SYSTEM_INSTRUCTION,
+        systemInstruction = ModelInstruction.DEFAULT_SYSTEM_INSTRUCTION.instruction,
         keepLastN = 12,
         sessionId = sessionId.load(),
     )
@@ -217,27 +231,25 @@ object OpenaiDependency {
         Pair(
             ContextMode.SLIDING_WINDOW,
             SlidingWindowStrategy(
-                mf = messageFactory,
-                profileRepository = profileRepository,
-                personalizationService = personalizationService,
+                mf = messageFactoryAdapter,
+                userProfileService = userProfileServiceAdapter,
                 sessionId = sessionId.load(),
             )
         ),
         Pair(
             ContextMode.STICKY_FACTS,
             StickyFactsStrategy(
-                messageFactory,
+                mf = messageFactoryAdapter,
                 factsUpdater = factsUpdater,
-                profileRepository = profileRepository,
-                personalizationService = personalizationService,
+                userProfileService = userProfileServiceAdapter,
                 sessionId = sessionId.load(),
             )
         ),
         Pair(
             ContextMode.SUMMARY,
             SummaryStrategy(
-                compressor = compressor,
-                prompts = prompts
+                compressor = compressorAdapter,
+                prompts = promptBuilderAdapter
             )
         )
     )
@@ -279,11 +291,11 @@ object OpenaiDependency {
     val contextEngine = ContextModeMemoryEngine(
         sessionId = sessionId.load(),
         conversationRepository = conversationRepository,
-        normalizer = normalizer,
-        prompts = prompts,
-        messageFactory = messageFactory,
+        normalizer = normalizerAdapter,
+        prompts = promptBuilderAdapter,
+        messageFactory = messageFactoryAdapter,
         strategies = strategies,
-        systemInstruction = ModelInstruction.DEFAULT_SYSTEM_INSTRUCTION,
+        systemInstruction = ModelInstruction.DEFAULT_SYSTEM_INSTRUCTION.instruction,
         mode = ContextMode.SUMMARY,
         keepLastN = 12
     )

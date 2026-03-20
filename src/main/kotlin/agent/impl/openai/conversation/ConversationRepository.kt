@@ -1,17 +1,12 @@
 package agent.impl.openai.conversation
 
+import agent.impl.openai.memory.ports.MemoryConversationRepository
 import store.ConversationState
 import store.ConversationStore
 
-interface ConversationRepository {
-    fun load(sessionId: String): ConversationState
-    fun save(sessionId: String, state: ConversationState)
-    fun delete(sessionId: String)
-}
-
 class ConversationRepositoryImpl(
     private val conversationStore: ConversationStore
-) : ConversationRepository {
+) : MemoryConversationRepository {
     override fun load(sessionId: String): ConversationState {
         return conversationStore.loadState(sessionId)
     }
