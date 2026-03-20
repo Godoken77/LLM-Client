@@ -40,6 +40,8 @@ class StructuralChunker(
     private val pageBreak = Regex("""\f""")
 
     override fun chunk(text: String, file: File): List<Chunk> {
+        if (text.isBlank()) return emptyList()
+
         val normalised = text.replace("\r\n", "\n")
         val title = file.nameWithoutExtension
         val source = file.absolutePath
@@ -185,24 +187,17 @@ class StructuralChunker(
 
             if (trimmed.length < minChunkSize) {
                 // Accumulate into the pending buffer
-                pending = if (pending == null) {
-                    heading to trimmed
-                } else {
-                    pending!!.first to "${pending!!.second}\n\n$trimmed"
-                }
+                pending = pending?.let { (_, buf) -> heading to "$buf\n\n$trimmed" }
+                    ?: (heading to trimmed)
             } else {
-                if (pending != null) {
-                    // Prepend accumulated content to the current body
-                    result += heading to "${pending!!.second}\n\n$trimmed"
-                    pending = null
-                } else {
-                    result += heading to trimmed
-                }
+                result += pending?.let { (_, buf) -> heading to "$buf\n\n$trimmed" }
+                    ?: (heading to trimmed)
+                pending = null
             }
         }
 
         // Flush remaining pending content
-        if (pending != null) result += pending!!
+        pending?.let { result += it }
 
         return result
     }

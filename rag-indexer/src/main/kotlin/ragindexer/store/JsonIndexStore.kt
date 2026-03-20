@@ -59,6 +59,9 @@ class JsonIndexStore(private val outputDir: File = File("data/indices")) : Index
 
     private fun parseFile(file: File): DocumentIndex? =
         runCatching { gson.fromJson(file.readText(Charsets.UTF_8), DocumentIndex::class.java) }
-            .onFailure { e -> System.err.println("[IndexStore] Failed to parse ${file.name}: ${e.message}") }
+            .onFailure { e ->
+                System.err.println("[IndexStore] Failed to parse ${file.name}: ${e.message}")
+                e.printStackTrace()
+            }
             .getOrNull()
 }

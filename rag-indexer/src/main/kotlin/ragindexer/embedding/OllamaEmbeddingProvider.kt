@@ -23,7 +23,7 @@ import java.util.concurrent.TimeUnit
 class OllamaEmbeddingProvider(
     private val baseUrl: String = "http://localhost:11434",
     override val modelName: String = "nomic-embed-text"
-) : EmbeddingProvider {
+) : EmbeddingProvider, AutoCloseable {
 
     private val jsonMediaType = "application/json".toMediaType()
     private val gson = Gson()
@@ -34,7 +34,7 @@ class OllamaEmbeddingProvider(
         .build()
 
     private data class EmbedRequest(val model: String, val prompt: String)
-    private data class EmbedResponse(val embedding: List<Double>)
+    private data class EmbedResponse(val embedding: List<Double>?)
 
     override suspend fun embed(text: String): List<Double> = withContext(Dispatchers.IO) {
         val requestBody = gson.toJson(EmbedRequest(modelName, text))
@@ -45,16 +45,21 @@ class OllamaEmbeddingProvider(
             .post(requestBody)
             .build()
 
-        val response = httpClient.newCall(request).execute()
-        val responseBody = response.body?.string()
-            ?: error("Empty response body from Ollama at $baseUrl")
+        // response.use {} ensures the body is closed even on error
+        httpClient.newCall(request).execute().use { response ->
+            val responseBody = response.body?.string()
+                ?: error("Empty response body from Ollama at $baseUrl")
 
-        if (!response.isSuccessful) {
-            error("Ollama returned HTTP ${response.code}: $responseBody")
+            if (!response.isSuccessful) {
+                error("Ollama returned HTTP ${response.code}: $responseBody")
+            }
+
+            val embedding = gson.fromJson(responseBody, EmbedResponse::class.java).embedding
+            require(!embedding.isNullOrEmpty()) {
+                "Ollama response missing or empty 'embedding' field: $responseBody"
+            }
+            embedding
         }
-
-        gson.fromJson(responseBody, EmbedResponse::class.java).embedding
-            ?: error("Ollama response missing 'embedding' field: $responseBody")
     }
 
     /**
@@ -63,4 +68,10 @@ class OllamaEmbeddingProvider(
      */
     override suspend fun embedBatch(texts: List<String>): List<List<Double>> =
         texts.map { embed(it) }
+
+    /** Shuts down the underlying connection pool and dispatcher threads. */
+    override fun close() {
+        httpClient.dispatcher.executorService.shutdown()
+        httpClient.connectionPool.evictAll()
+    }
 }

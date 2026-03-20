@@ -28,33 +28,31 @@ fun main(args: Array<String>) {
         return
     }
 
-    val embeddingProvider = OllamaEmbeddingProvider(
-        baseUrl = config.ollamaUrl,
-        modelName = config.model
-    )
-    val indexStore = JsonIndexStore(File(config.outputDir))
-    val pipeline = IndexingPipeline(
-        embeddingProvider = embeddingProvider,
-        indexStore = indexStore,
-        fixedChunkSize = config.chunkSize,
-        fixedChunkOverlap = config.chunkOverlap,
-        minStructuralSize = config.minStructuralSize
-    )
+    OllamaEmbeddingProvider(baseUrl = config.ollamaUrl, modelName = config.model).use { embeddingProvider ->
+        val indexStore = JsonIndexStore(File(config.outputDir))
+        val pipeline = IndexingPipeline(
+            embeddingProvider = embeddingProvider,
+            indexStore = indexStore,
+            fixedChunkSize = config.chunkSize,
+            fixedChunkOverlap = config.chunkOverlap,
+            minStructuralSize = config.minStructuralSize
+        )
 
-    try {
-        if (config.bothStrategies) {
-            println("Indexing with BOTH strategies...")
-            val (fixed, structural) = pipeline.indexBothStrategies(file)
-            println("\nDone.")
-            println("  FIXED_SIZE  index ID : ${fixed.indexId}  (${fixed.totalChunks} chunks)")
-            println("  STRUCTURAL  index ID : ${structural.indexId}  (${structural.totalChunks} chunks)")
-        } else {
-            val index = pipeline.index(file, config.strategy)
-            println("\nDone.  Index ID: ${index.indexId}  (${index.totalChunks} chunks)")
+        try {
+            if (config.bothStrategies) {
+                println("Indexing with BOTH strategies...")
+                val (fixed, structural) = pipeline.indexBothStrategies(file)
+                println("\nDone.")
+                println("  FIXED_SIZE  index ID : ${fixed.indexId}  (${fixed.totalChunks} chunks)")
+                println("  STRUCTURAL  index ID : ${structural.indexId}  (${structural.totalChunks} chunks)")
+            } else {
+                val index = pipeline.index(file, config.strategy)
+                println("\nDone.  Index ID: ${index.indexId}  (${index.totalChunks} chunks)")
+            }
+        } catch (e: Exception) {
+            System.err.println("Indexing failed: ${e.message}")
+            e.printStackTrace()
         }
-    } catch (e: Exception) {
-        System.err.println("Indexing failed: ${e.message}")
-        e.printStackTrace()
     }
 }
 
@@ -83,18 +81,23 @@ private fun parseArgs(args: Array<String>): IndexerConfig {
     var chunkOverlap = 200
     var minStructuralSize = 50
 
+    fun nextArg(flag: String): String {
+        require(i + 1 < args.size) { "Flag '$flag' requires a value but none was provided" }
+        return args[++i]
+    }
+
     var i = 0
     while (i < args.size) {
         when (args[i]) {
-            "--file"              -> filePath = args[++i]
-            "--strategy"         -> strategy = ChunkingStrategy.fromString(args[++i])
+            "--file"              -> filePath = nextArg("--file")
+            "--strategy"         -> strategy = ChunkingStrategy.fromString(nextArg("--strategy"))
             "--both"             -> bothStrategies = true
-            "--ollama-url"       -> ollamaUrl = args[++i]
-            "--model"            -> model = args[++i]
-            "--output"           -> outputDir = args[++i]
-            "--chunk-size"       -> chunkSize = args[++i].toInt()
-            "--chunk-overlap"    -> chunkOverlap = args[++i].toInt()
-            "--min-section-size" -> minStructuralSize = args[++i].toInt()
+            "--ollama-url"       -> ollamaUrl = nextArg("--ollama-url")
+            "--model"            -> model = nextArg("--model")
+            "--output"           -> outputDir = nextArg("--output")
+            "--chunk-size"       -> chunkSize = nextArg("--chunk-size").toInt()
+            "--chunk-overlap"    -> chunkOverlap = nextArg("--chunk-overlap").toInt()
+            "--min-section-size" -> minStructuralSize = nextArg("--min-section-size").toInt()
             else                 -> if (filePath.isEmpty() && !args[i].startsWith("--")) {
                 filePath = args[i]   // positional first argument
             }
