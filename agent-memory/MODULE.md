@@ -10,26 +10,12 @@
 ```
 agent-memory/
 └── src/main/kotlin/
-    ├── store/
-    │   └── ConversationState.kt          # Messages typealias + ConversationState data class
     ├── agent/impl/openai/
-    │   ├── model/
-    │   │   └── Settings.kt               # ModelVersion, ModelInstruction, ModelReasoningEffort
-    │   ├── agentImpl/
-    │   │   └── AgentMemoryMode.kt        # CONTEXT_MODE | MEMORY_LAYERS
-    │   ├── conversation/
-    │   │   └── ConversationRepository.kt # port-интерфейс (impl в main)
     │   ├── memory/
-    │   │   ├── ports/                    # 7 port-интерфейсов (см. ниже)
+    │   │   ├── ports/                    # 4 port-интерфейса (см. ниже)
     │   │   ├── engine/
-    │   │   │   └── MemoryEngine.kt       # общий интерфейс движка памяти
-    │   │   ├── context/                  # архитектура Context Mode
-    │   │   │   ├── ContextStrategy.kt    # интерфейс стратегии + enum ContextMode
-    │   │   │   ├── engine/               # ContextModeMemoryEngine
-    │   │   │   ├── slider/               # SlidingWindowStrategy
-    │   │   │   ├── sticky/               # StickyFactsStrategy + FactsUpdater
-    │   │   │   └── summary/              # SummaryStrategy
-    │   │   └── layers/                   # архитектура Memory Layers
+    │   │   │   └── MemoryEngine.kt       # публичный интерфейс движка памяти
+    │   │   └── layers/                   # единственная архитектура памяти
     │   │       ├── engine/               # MemoryLayersEngine
     │   │       ├── model/                # MemoryState (short/working/long-term)
     │   │       ├── prompt/               # MemoryPromptBuilder
@@ -39,37 +25,38 @@ agent-memory/
     │   └── taskstages/                   # TaskStateMachine встроена в WorkingMemory
     │       ├── Actions.kt                # ExpectedAction enum
     │       ├── Stages.kt                 # TaskStage enum
-    │       ├── TaskStateMachine.kt       # data class
-    │       ├── TaskTransition.kt         # enum переходов
-    │       ├── service/                  # TaskStateMachineService
+    │       ├── TaskStateMachine.kt       # data class состояния задачи
+    │       ├── TaskTransition.kt         # enum переходов + TaskTransitionDecision
+    │       ├── service/                  # TaskStateMachineService (детерминированный)
     │       └── stateupdater/             # TaskStateUpdater (LLM-driven)
 ```
 
 ---
 
-## Две архитектуры памяти
-
-### Context Mode (`ContextModeMemoryEngine`)
-
-Управляет `ConversationState` через сменяемую стратегию.
-
-| Стратегия | Описание |
-|---|---|
-| `SLIDING_WINDOW` | Скользящее окно последних N сообщений |
-| `STICKY_FACTS` | LLM извлекает и фиксирует факты из диалога |
-| `SUMMARY` | Компрессия старых сообщений в summary |
-
-Переключение режима: `engine.changeMode(ContextMode.SUMMARY)`.
-
-### Memory Layers (`MemoryLayersEngine`)
+## Архитектура памяти: Memory Layers
 
 Трёхуровневая память: краткосрочная → рабочая → долгосрочная.
 
-- **Short-term**: последние N сообщений сессии
-- **Working**: текущая задача + `TaskStateMachine`
-- **Long-term**: персистентные факты о пользователе (JSON-файл)
+| Уровень | Хранит | Обновляется |
+|---|---|---|
+| **Short-term** | Последние N сообщений сессии | Каждое сообщение |
+| **Working** | Текущая задача + `TaskStateMachine` | LLM после каждого хода пользователя |
+| **Long-term** | Факты, решения, знания о пользователе | LLM после каждого хода пользователя |
 
-Маршрутизатор (`MemoryRouter`) обновляет рабочую и долгосрочную память после каждого сообщения пользователя.
+Маршрутизатор (`MemoryRouter`) запускает `WorkingMemoryUpdater` и `LongTermMemoryUpdater` на каждое сообщение пользователя, `MemoryLayersEngine` сохраняет результат в `MemoryRepository`.
+
+---
+
+## TaskStateMachine
+
+Конечный автомат задачи встроен в рабочую память:
+
+```
+PLANNING → EXECUTION → VALIDATION → DONE
+             ↑↓ PAUSED
+```
+
+`TaskStateUpdaterImpl` анализирует последние 10 сообщений через LLM и определяет переход (`START`, `APPROVE_PLAN`, `FINISH_EXECUTION`, `VALIDATION_OK/FAIL`, `PAUSE`, `RESUME`, `NO_CHANGE`). `TaskStateMachineService` применяет его детерминированно с проверкой допустимости.
 
 ---
 
@@ -84,49 +71,43 @@ agent-memory/
 | `MemoryMessageFactory` | `MessageFactoryAdapter(MessageFactory)` |
 | `MemoryUserProfileService` | `UserProfileServiceAdapter(repo, service)` |
 | `MemoryInvariantService` | `InvariantServiceAdapter(repo, builder)` |
-| `MemoryConversationCompressor` | `CompressorAdapter(ConversationCompressor)` |
-| `MemoryStateNormalizer` | `StateNormalizerAdapter(StateNormalizer)` |
-| `MemoryContextPromptBuilder` | `PromptBuilderAdapter(PromptBuilder)` |
+
+---
+
+## Публичный интерфейс
+
+```kotlin
+interface MemoryEngine {
+    suspend fun onModeActivated()
+    suspend fun buildInput(userText: String): List<Map<String, Any>>
+    suspend fun saveToolMessages(messages: List<Map<String, Any>>)
+    suspend fun saveAssistantReply(reply: String)
+    suspend fun reset()
+}
+```
+
+`buildInput()` — строит список сообщений для LLM: системная инструкция + профиль пользователя + инварианты + состояние задачи + долгосрочная память + краткосрочные сообщения.
 
 ---
 
 ## Подключение (пример из `Dependency.kt`)
 
 ```kotlin
-// Создать адаптеры
 val llmClientAdapter = OpenaiMemoryLlmClient(openaiApi)
 val messageFactoryAdapter = MessageFactoryAdapter(messageFactory)
 val userProfileServiceAdapter = UserProfileServiceAdapter(profileRepository, personalizationService)
+val invariantServiceAdapter = InvariantServiceAdapter(invariantRepository, invariantPromptBuilder)
 
-// Context Mode
-val contextEngine = ContextModeMemoryEngine(
-    sessionId = sessionId,
-    conversationRepository = conversationRepository,
-    normalizer = StateNormalizerAdapter(normalizer),
-    prompts = PromptBuilderAdapter(prompts),
-    messageFactory = messageFactoryAdapter,
-    strategies = strategies,
-    systemInstruction = ModelInstruction.DEFAULT_SYSTEM_INSTRUCTION,
-    mode = ContextMode.SUMMARY,
-    keepLastN = 12
-)
-
-// Memory Layers
 val layersEngine = MemoryLayersEngine(
     memoryRepository = FileMemoryRepository(File("./data")),
-    memoryRouter = MemoryRouterImpl(messageFactoryAdapter, workingMemoryUpdater, longTermMemoryUpdater),
+    memoryRouter = MemoryRouterImpl(
+        messageFactory = messageFactoryAdapter,
+        workingMemoryUpdater = WorkingMemoryUpdaterImpl(llmClientAdapter, messageFactoryAdapter, taskStateUpdater),
+        longTermMemoryUpdater = LongTermMemoryUpdaterImpl(llmClientAdapter, messageFactoryAdapter)
+    ),
     promptBuilder = MemoryPromptBuilder(messageFactoryAdapter, userProfileServiceAdapter, invariantServiceAdapter),
-    systemInstruction = ModelInstruction.DEFAULT_SYSTEM_INSTRUCTION,
+    systemInstruction = "Ты полезный ассистент.",
     keepLastN = 12,
     sessionId = sessionId
 )
 ```
-
----
-
-## Переключение режима памяти агента
-
-`AgentMemoryMode.CONTEXT_MODE` — использует `ContextModeMemoryEngine`.
-`AgentMemoryMode.MEMORY_LAYERS` — использует `MemoryLayersEngine`.
-
-Режим задаётся при создании агента через `OpenAIChatAgent(memoryMode = ...)`.
