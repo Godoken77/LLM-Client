@@ -1,15 +1,9 @@
 package network
 
-import agent.impl.openai.agentImpl.AgentMemoryMode
-import agent.impl.openai.api.dto.AgentMemoryModeResponse
-import agent.impl.openai.api.dto.SetAgentMemoryModeRequest
-import agent.impl.openai.api.dto.SetAgentMemoryModeResponse
-import agent.impl.openai.memory.context.ContextMode
 import io.ktor.http.ContentType
 import io.ktor.http.Cookie
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
-import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.gson.gson
 import io.ktor.server.application.ApplicationCall
 import io.ktor.server.application.ApplicationStopped
@@ -30,13 +24,9 @@ import io.ktor.server.http.content.default
 import io.ktor.server.http.content.staticResources
 import model.ChatRequest
 import model.ChatResponse
-import model.ContextInfoResponse
 import model.HistoryItem
 import model.HistoryResponse
 import model.ResetResponse
-import model.SetContextRequest
-import model.SetContextResponse
-import ui.htmlPage
 import java.util.UUID
 import kotlin.collections.get
 import kotlin.concurrent.atomics.ExperimentalAtomicApi
@@ -107,75 +97,12 @@ fun startService(dependency: Dependency) {
                     val first = content.firstOrNull() as? Map<*, *> ?: return@forEach
                     val text = first["text"] as? String ?: return@forEach
 
-                    // developer/system обычно не показываем в UI
                     if (role == "developer" || role == "system") return@forEach
 
                     items += HistoryItem(role = role, text = text)
                 }
 
                 call.respond(HistoryResponse(items))
-            }
-
-            get("/api/context") {
-                ensureSessionId(call)
-                val agent = agentStore.getOrCreate()
-
-                val current = agent.getContextMode()
-
-                call.respond(
-                    ContextInfoResponse(
-                        mode = current.name,
-                        available = ContextMode.entries.map { it.name }
-                    )
-                )
-            }
-
-            post("/api/context") {
-                ensureSessionId(call)
-                val agent = agentStore.getOrCreate()
-
-                val req = call.receive<SetContextRequest>()
-                val newMode = runCatching { ContextMode.valueOf(req.mode) }.getOrNull()
-                    ?: return@post call.respond(
-                        HttpStatusCode.BadRequest,
-                        SetContextResponse(ok = false, mode = req.mode, message = "Unknown mode: ${req.mode}")
-                    )
-
-                agent.setContextMode(newMode)
-
-                call.respond(SetContextResponse(ok = true, mode = newMode.name))
-            }
-
-            get("/api/memory-mode") {
-                ensureSessionId(call)
-                val agent = agentStore.getOrCreate()
-
-                call.respond(
-                    AgentMemoryModeResponse(
-                        mode = agent.getAgentMemoryMode().name,
-                        available = AgentMemoryMode.entries.map { it.name }
-                    )
-                )
-            }
-
-            post("/api/memory-mode") {
-                ensureSessionId(call)
-                val agent = agentStore.getOrCreate()
-
-                val req = call.receive<SetAgentMemoryModeRequest>()
-                val newMode = runCatching { AgentMemoryMode.valueOf(req.mode) }.getOrNull()
-                    ?: return@post call.respond(
-                        HttpStatusCode.BadRequest,
-                        SetAgentMemoryModeResponse(
-                            ok = false,
-                            mode = req.mode,
-                            message = "Unknown mode: ${req.mode}"
-                        )
-                    )
-
-                agent.setAgentMemoryMode(newMode)
-
-                call.respond(SetAgentMemoryModeResponse(ok = true, mode = newMode.name))
             }
         }
     }.start(wait = true)
@@ -196,7 +123,7 @@ private fun ensureSessionId(call: ApplicationCall): String {
             value = sid,
             httpOnly = true,
             path = "/",
-            secure = false, // для локалки
+            secure = false,
         )
     )
     Dependency.sessionId.store(sid)

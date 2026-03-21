@@ -2,7 +2,6 @@ package model
 
 import agent.impl.openai.model.TokenStats
 
-// ------------------- API модели запрос/ответ -------------------
 data class ChatRequest(
     val message: String
 )
@@ -23,19 +22,4 @@ data class HistoryItem(
 
 data class HistoryResponse(
     val items: List<HistoryItem>
-)
-
-data class ContextInfoResponse(
-    val mode: String,
-    val available: List<String>
-)
-
-data class SetContextRequest(
-    val mode: String
-)
-
-data class SetContextResponse(
-    val ok: Boolean,
-    val mode: String,
-    val message: String? = null
 )

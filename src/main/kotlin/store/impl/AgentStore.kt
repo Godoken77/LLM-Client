@@ -20,8 +20,7 @@ class AgentStore(
             OpenAIChatAgent(
                 sessionId = sessionId,
                 openai = dependency.openaiApi,
-                contextEngine = dependency.contextEngine,
-                layersEngine = dependency.layersEngine,
+                engine = dependency.layersEngine,
                 invariantRepository = dependency.invariantRepository,
                 invariantChecker = dependency.invariantChecker,
                 refusalBuilder = dependency.invariantRefusalBuilder,

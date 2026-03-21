@@ -10,14 +10,6 @@ import io.ktor.http.ContentType
 import io.ktor.serialization.gson.gson
 import agent.impl.openai.api.OpenAIClient
 import agent.impl.openai.api.OpenaiApi
-import agent.impl.openai.compsessor.ConversationCompressorImpl
-import agent.impl.openai.memory.context.ContextMode
-import agent.impl.openai.memory.context.ContextStrategy
-import agent.impl.openai.memory.context.engine.ContextModeMemoryEngine
-import agent.impl.openai.memory.context.slider.SlidingWindowStrategy
-import agent.impl.openai.memory.context.sticky.FactsUpdaterImpl
-import agent.impl.openai.memory.context.sticky.StickyFactsStrategy
-import agent.impl.openai.memory.context.summary.SummaryStrategy
 import agent.impl.openai.memory.layers.engine.MemoryLayersEngine
 import agent.impl.openai.memory.layers.prompt.MemoryPromptBuilder
 import agent.impl.openai.memory.layers.repository.FileMemoryRepository
@@ -26,14 +18,10 @@ import agent.impl.openai.memory.layers.router.MemoryRouter
 import agent.impl.openai.memory.layers.router.MemoryRouterImpl
 import agent.impl.openai.memory.layers.updater.longterm.LongTermMemoryUpdaterImpl
 import agent.impl.openai.memory.layers.updater.workterm.WorkingMemoryUpdaterImpl
-import agent.impl.openai.memory.adapters.CompressorAdapter
 import agent.impl.openai.memory.adapters.InvariantServiceAdapter
 import agent.impl.openai.memory.adapters.MessageFactoryAdapter
 import agent.impl.openai.memory.adapters.OpenaiMemoryLlmClient
-import agent.impl.openai.memory.adapters.PromptBuilderAdapter
-import agent.impl.openai.memory.adapters.StateNormalizerAdapter
 import agent.impl.openai.memory.adapters.UserProfileServiceAdapter
-import agent.impl.openai.conversation.ConversationRepositoryImpl
 import agent.impl.openai.invariants.AssistantInvariant
 import agent.impl.openai.invariants.InvariantSet
 import agent.impl.openai.invariants.InvariantSeverity
@@ -44,10 +32,7 @@ import agent.impl.openai.invariants.refusalbuilder.InvariantRefusalBuilderImpl
 import agent.impl.openai.invariants.repository.FileInvariantRepository
 import agent.impl.openai.messages.MessageFactoryImpl
 import agent.impl.openai.model.ModelInstruction
-import agent.impl.openai.prompt.PromptBuilderImpl
 import agent.impl.openai.responseparser.GsonResponseParserImpl
-import agent.impl.openai.statenormalizer.StateNormalizerImpl
-import agent.impl.openai.summarizer.LlmSummarizer
 import agent.impl.openai.taskstages.service.TaskStateMachineServiceImpl
 import agent.impl.openai.taskstages.stateupdater.TaskStateUpdaterImpl
 import agent.impl.openai.userprofile.FileUserProfileRepository
@@ -144,38 +129,15 @@ object OpenaiDependency {
     }
 
     val messageFactory = MessageFactoryImpl()
-    val normalizer = StateNormalizerImpl(messageFactory)
-    val prompts = PromptBuilderImpl(messageFactory)
     val parser = GsonResponseParserImpl()
 
-    val conversationRepository = ConversationRepositoryImpl(Dependency.conversationStore)
     private val profileRepository = FileUserProfileRepository()
     private val personalizationService: PersonalizationService = PersonalizationServiceImpl()
-
-    private val summarizer = LlmSummarizer(
-        openai = openaiApi,
-        responseParser = parser,
-        messages = messageFactory
-    )
-
-    val compressor = ConversationCompressorImpl(
-        keepLastN = 12,
-        chunkSize = 10,
-        summarizer = summarizer
-    )
 
     // Adapters — bridge main implementations to agent-memory port interfaces
     val llmClientAdapter = OpenaiMemoryLlmClient(openaiApi)
     val messageFactoryAdapter = MessageFactoryAdapter(messageFactory)
     val userProfileServiceAdapter = UserProfileServiceAdapter(profileRepository, personalizationService)
-    val compressorAdapter = CompressorAdapter(compressor)
-    val normalizerAdapter = StateNormalizerAdapter(normalizer)
-    val promptBuilderAdapter = PromptBuilderAdapter(prompts)
-
-    val factsUpdater = FactsUpdaterImpl(
-        llmClient = llmClientAdapter,
-        mf = messageFactoryAdapter
-    )
 
     val taskStateMachineService = TaskStateMachineServiceImpl()
 
@@ -226,34 +188,6 @@ object OpenaiDependency {
         sessionId = sessionId.load(),
     )
 
-    @OptIn(ExperimentalAtomicApi::class)
-    val strategies: Map<ContextMode, ContextStrategy> = mapOf(
-        Pair(
-            ContextMode.SLIDING_WINDOW,
-            SlidingWindowStrategy(
-                mf = messageFactoryAdapter,
-                userProfileService = userProfileServiceAdapter,
-                sessionId = sessionId.load(),
-            )
-        ),
-        Pair(
-            ContextMode.STICKY_FACTS,
-            StickyFactsStrategy(
-                mf = messageFactoryAdapter,
-                factsUpdater = factsUpdater,
-                userProfileService = userProfileServiceAdapter,
-                sessionId = sessionId.load(),
-            )
-        ),
-        Pair(
-            ContextMode.SUMMARY,
-            SummaryStrategy(
-                compressor = compressorAdapter,
-                prompts = promptBuilderAdapter
-            )
-        )
-    )
-
     val invariants = InvariantSet(
         mutableListOf(
             AssistantInvariant(
@@ -285,18 +219,5 @@ object OpenaiDependency {
                 severity = InvariantSeverity.HARD
             )
         )
-    )
-
-    @OptIn(ExperimentalAtomicApi::class)
-    val contextEngine = ContextModeMemoryEngine(
-        sessionId = sessionId.load(),
-        conversationRepository = conversationRepository,
-        normalizer = normalizerAdapter,
-        prompts = promptBuilderAdapter,
-        messageFactory = messageFactoryAdapter,
-        strategies = strategies,
-        systemInstruction = ModelInstruction.DEFAULT_SYSTEM_INSTRUCTION.instruction,
-        mode = ContextMode.SUMMARY,
-        keepLastN = 12
     )
 }
