@@ -1,11 +1,11 @@
 package agent.impl.openai.taskstages.stateupdater
 
-import agent.impl.openai.memory.ports.MemoryLlmClient
-import agent.impl.openai.memory.ports.MemoryMessageFactory
 import agent.impl.openai.taskstages.InvalidTaskTransitionException
 import agent.impl.openai.taskstages.TaskStateMachine
 import agent.impl.openai.taskstages.TaskTransition
 import agent.impl.openai.taskstages.TaskTransitionDecision
+import agent.impl.openai.taskstages.ports.TaskLlmClient
+import agent.impl.openai.taskstages.ports.TaskMessageFactory
 import agent.impl.openai.taskstages.service.TaskStateMachineService
 import com.google.gson.Gson
 import com.google.gson.JsonObject
@@ -18,8 +18,8 @@ interface TaskStateUpdater {
 }
 
 class TaskStateUpdaterImpl(
-    private val llmClient: MemoryLlmClient,
-    private val messageFactory: MemoryMessageFactory,
+    private val llmClient: TaskLlmClient,
+    private val messageFactory: TaskMessageFactory,
     private val stateMachineService: TaskStateMachineService,
     private val gson: Gson = Gson(),
     private val model: String = "gpt-5.2"

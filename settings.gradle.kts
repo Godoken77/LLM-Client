@@ -3,6 +3,7 @@ plugins {
 }
 rootProject.name = "LLM-Client"
 include("agent-memory")
+include("agent-tasks")
 include("mcp-api-server")
 include("mcp-notes-server")
 include("mcp-weather-server")

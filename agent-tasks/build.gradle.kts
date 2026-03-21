@@ -7,7 +7,6 @@ repositories {
 }
 
 dependencies {
-    implementation(project(":agent-tasks"))
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
     implementation("com.google.code.gson:gson:2.11.0")
 }

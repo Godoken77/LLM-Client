@@ -22,6 +22,8 @@ import agent.impl.openai.memory.adapters.InvariantServiceAdapter
 import agent.impl.openai.memory.adapters.MessageFactoryAdapter
 import agent.impl.openai.memory.adapters.OpenaiMemoryLlmClient
 import agent.impl.openai.memory.adapters.UserProfileServiceAdapter
+import agent.impl.openai.taskstages.adapters.TaskLlmClientAdapter
+import agent.impl.openai.taskstages.adapters.TaskMessageFactoryAdapter
 import agent.impl.openai.invariants.AssistantInvariant
 import agent.impl.openai.invariants.InvariantSet
 import agent.impl.openai.invariants.InvariantSeverity
@@ -141,9 +143,12 @@ object OpenaiDependency {
 
     val taskStateMachineService = TaskStateMachineServiceImpl()
 
+    val taskLlmClientAdapter = TaskLlmClientAdapter(openaiApi)
+    val taskMessageFactoryAdapter = TaskMessageFactoryAdapter(messageFactory)
+
     val taskStateUpdater = TaskStateUpdaterImpl(
-        llmClient = llmClientAdapter,
-        messageFactory = messageFactoryAdapter,
+        llmClient = taskLlmClientAdapter,
+        messageFactory = taskMessageFactoryAdapter,
         stateMachineService = taskStateMachineService
     )
 
